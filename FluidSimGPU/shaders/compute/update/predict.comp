@@ -1,0 +1,57 @@
+#version 430 core
+
+layout (local_size_x = 1024) in; //working in 1D
+
+//this struct has to have size equal to multiple of largest element,
+//in this case that is vec2 with 8 bytes, the total of the struct is 32 bytes.
+struct Particle {
+	vec2 position;
+	vec2 predictedPosition;
+	vec2 velocity;
+	float lamda;
+	int properties;
+};
+
+layout(std430, binding = 0) buffer ParticleBuffer {
+	Particle particles[];
+};
+
+layout(std140, binding = 0) uniform SimulationValues {
+	int numParticles;
+	int numCells;
+	int xCells;
+	int yCells;
+	int screenWidth;
+	int screenHeight;
+	int apPower;
+	int cNumCells;
+	int cxCells;
+	int cyCells;
+	int finalIteration;
+	float maxVelocity;
+	float particleRadius;
+	float boundDamping;
+	float kernelRadius;
+	float kr2;
+	float poly6;
+	float spikyGrad;
+	float relaxation;
+	float apDenominator;
+	float apConstant;
+	float deltaTime;
+	float gravity;
+	float cResolution;
+	float cResHalf;
+	float cRadius;
+	float cRadius2;
+};
+
+void main() {
+	uint id = gl_GlobalInvocationID.x;
+	if (id >= numParticles) return;
+
+	Particle p = particles[id];
+	p.velocity.y += deltaTime * gravity;
+	p.predictedPosition = p.position + p.velocity * deltaTime;
+	particles[id] = p;
+}

@@ -1,0 +1,128 @@
+#version 430 core
+
+layout (local_size_x = 1024) in; //working in 1D
+
+//this struct has to have size equal to multiple of largest element,
+//in this case that is vec2 with 8 bytes, the total of the struct is 32 bytes.
+struct Particle {
+	vec2 position;
+	vec2 predictedPosition;
+	vec2 velocity;
+	float lamda;
+	int properties;
+};
+
+//largest is vec4 with 16 bytes, total is 32
+struct Properties { //particle properties
+	float mass;
+	float viscosity;
+	float restDensity;
+	int id;
+	vec4 color;
+};
+
+layout(std430, binding = 0) buffer ParticleBuffer {
+	Particle particles[];
+};
+
+layout(std430, binding = 1) buffer GridCells {
+	int cellStart[];
+};
+
+layout(std430, binding = 2) buffer PropertiesBuffer {
+	Properties properties[6];
+	float densities[];
+};
+
+layout(std430, binding = 4) buffer ColorBuffer {
+	float colors[];
+};
+
+layout(std140, binding = 0) uniform SimulationValues {
+	int numParticles;
+	int numCells;
+	int xCells;
+	int yCells;
+	int screenWidth;
+	int screenHeight;
+	int apPower;
+	int cNumCells;
+	int cxCells;
+	int cyCells;
+	int finalIteration;
+	float maxVelocity;
+	float particleRadius;
+	float boundDamping;
+	float kernelRadius;
+	float kr2;
+	float poly6;
+	float spikyGrad;
+	float relaxation;
+	float apDenominator;
+	float apConstant;
+	float deltaTime;
+	float gravity;
+	float cResolution;
+	float cResHalf;
+	float cRadius;
+	float cRadius2;
+};
+
+void main() {
+	uint id = gl_GlobalInvocationID.x;
+	if (id >= numParticles) return;
+
+	Particle p = particles[id];
+	
+	float density = 0;
+	float denominatorNeighbours = 0;
+	float denominatorSelf = 0;
+	float restDensity = properties[p.properties].restDensity;
+
+	int px = int(floor(p.position.x / kernelRadius));
+	int py = int(floor(p.position.y / kernelRadius));
+
+	//loop through neighbouring cells
+	for (int y = py - 1; y <= py + 1; y++) {
+		for (int x = px - 1; x <= px + 1; x++) {
+			if (y < 0 || x < 0 || y >= yCells || x >= xCells) continue; //out of bounds
+
+			int cellID = y * xCells + x;
+			for (int i = cellStart[cellID]; i < cellStart[cellID + 1]; i++) { //loop through all particles in cell
+				Particle o = particles[i];
+
+				float dist = distance(o.predictedPosition, p.predictedPosition);
+				if (dist < kernelRadius) {
+					float oMass = properties[o.properties].mass;
+
+					float polyTemp = kr2 - dist * dist;
+					density += oMass * poly6 * polyTemp * polyTemp * polyTemp;
+
+//					float polyTemp = kernelRadius * kernelRadius - dist * dist;
+//					density += properties[p.properties].mass * poly6 * polyTemp * polyTemp * polyTemp;
+
+					float spikyTemp = kernelRadius - dist;
+					float gradient = oMass * (spikyGrad * spikyTemp * spikyTemp) / restDensity;
+
+					denominatorNeighbours += gradient * gradient;
+					denominatorSelf += gradient;
+				}
+			}
+		}
+	}
+
+	//colors[cNumCells + id] = density; //store density for use when calculating color
+	//p.density = density;
+
+	float denominator = denominatorNeighbours + denominatorSelf * denominatorSelf;
+	float densityConstraint = (density / restDensity) - 1.0;
+	if (densityConstraint < 0.0) p.lamda = 0;
+	else p.lamda = -densityConstraint / (denominator + relaxation);
+	//p.lamda = -densityConstraint / (denominator + relaxation);
+
+	particles[id] = p;
+
+	if (finalIteration == 1) {
+		densities[id] = density;
+	}
+}

@@ -1,0 +1,143 @@
+#version 430 core
+
+layout (local_size_x = 1024) in; //working in 1D
+
+//this struct has to have size equal to multiple of largest element,
+//in this case that is vec2 with 8 bytes, the total of the struct is 32 bytes.
+struct Particle {
+	vec2 position;
+	vec2 predictedPosition;
+	vec2 velocity;
+	float lamda;
+	int properties;
+};
+
+//largest is vec4 with 16 bytes, total is 32
+struct Properties { //particle properties
+	float mass;
+	float viscosity;
+	float restDensity;
+	int id;
+	vec4 color;
+};
+
+layout(std430, binding = 0) buffer ParticleBuffer {
+	Particle particles[];
+};
+
+layout(std430, binding = 1) buffer GridCells {
+	int cellStart[];
+};
+
+layout(std430, binding = 2) buffer PropertiesBuffer {
+	Properties properties[6];
+	float densities[];
+};
+
+layout(std140, binding = 0) uniform SimulationValues {
+	int numParticles;
+	int numCells;
+	int xCells;
+	int yCells;
+	int screenWidth;
+	int screenHeight;
+	int apPower;
+	int cNumCells;
+	int cxCells;
+	int cyCells;
+	int finalIteration;
+	float maxVelocity;
+	float particleRadius;
+	float boundDamping;
+	float kernelRadius;
+	float kr2;
+	float poly6;
+	float spikyGrad;
+	float relaxation;
+	float apDenominator;
+	float apConstant;
+	float deltaTime;
+	float gravity;
+	float cResolution;
+	float cResHalf;
+	float cRadius;
+	float cRadius2;
+};
+
+void main() {
+	uint id = gl_GlobalInvocationID.x;
+	if (id >= numParticles) return;
+
+	Particle p = particles[id];
+
+	//p.velocity = (p.predictedPosition - p.position) / deltaTime;
+
+//	//apply CFL
+//	p.velocity = p.predictedPosition - p.position; //the translation we play to apply to the particle
+//
+//	float velocity2 = dot(p.velocity, p.velocity);
+//	if (velocity2 > maxVelocity * maxVelocity) { //limit velocity
+//		p.velocity /= maxVelocity;
+//		p.predictedPosition = p.position + p.velocity; //adjust position
+//	}
+//
+//	p.velocity /= deltaTime;
+
+	//calculate and apply viscosity
+	vec2 viscosity = vec2(0.0, 0.0);
+
+	int px = int(floor(p.position.x / kernelRadius));
+	int py = int(floor(p.position.y / kernelRadius));
+
+	//loop through neighbouring cells to calculate viscosities affect on particle
+	for (int y = py - 1; y <= py + 1; y++) {
+		for (int x = px - 1; x <= px + 1; x++) {
+			if (y < 0 || x < 0 || y >= yCells || x >= xCells) continue; //out of bounds
+
+			int cellID = y * xCells + x;
+			for (int i = cellStart[cellID]; i < cellStart[cellID + 1]; i++) { //loop through all particles in cell
+				Particle o = particles[i];
+
+				vec2 direction = p.predictedPosition - o.predictedPosition;
+				float dist2 = dot(direction, direction);
+				if (dist2 < kr2) {
+					vec2 velocityDifference = o.velocity - p.velocity; //may be using o's old velocity, doesnt matter
+					float oMass = properties[o.properties].mass;
+
+					float polyTemp = kr2 - dist2;
+					viscosity += velocityDifference * (oMass * poly6 * polyTemp * polyTemp * polyTemp);
+				}
+			}
+		}
+	}
+	//barrier();
+	p.velocity += viscosity * properties[p.properties].viscosity;
+	p.position = p.predictedPosition;
+
+	//boundary solving
+	if (p.position.x - particleRadius < 0.0) {
+		p.velocity.x *= boundDamping;
+		p.position.x = particleRadius;
+	}
+	else if (p.position.x > screenWidth - particleRadius) {
+		p.velocity.x *= boundDamping;
+		p.position.x = screenWidth - particleRadius;
+	}
+	if (p.position.y - particleRadius < 0.0) {
+		p.velocity.y *= boundDamping;
+		p.position.y = particleRadius;
+	}
+	else if (p.position.y > screenHeight - particleRadius) {
+		p.velocity.y *= boundDamping;
+		p.position.y = screenHeight - particleRadius;
+	}
+
+	if (finalIteration == 1) {
+		p.lamda = densities[id]; //store density in lambda for later use, this is done purely for optimisation purposes
+	}
+
+	particles[id] = p;
+
+	//for rendering later, move to its own shader?
+	//vertices[id] = VertexData(vec4(p.position, 0.0, 1.0), properties[p.properties].color);
+}

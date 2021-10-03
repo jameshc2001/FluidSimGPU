@@ -1,0 +1,299 @@
+#version 430 core
+
+layout (local_size_x = 1024) in; //working in 1D
+
+struct msVertexData {
+	vec4 position;
+	vec4 color;
+};
+
+layout(std430, binding = 5) buffer msVertexBuffer {
+	msVertexData msVertices[];
+};
+
+layout(std430, binding = 4) buffer ColorBuffer {
+	float colors[];
+};
+
+layout(std140, binding = 0) uniform SimulationValues {
+	int numParticles;
+	int numCells;
+	int xCells;
+	int yCells;
+	int screenWidth;
+	int screenHeight;
+	int apPower;
+	int cNumCells;
+	int cxCells;
+	int cyCells;
+	int finalIteration;
+	float maxVelocity;
+	float particleRadius;
+	float boundDamping;
+	float kernelRadius;
+	float kr2;
+	float poly6;
+	float spikyGrad;
+	float relaxation;
+	float apDenominator;
+	float apConstant;
+	float deltaTime;
+	float gravity;
+	float cResolution;
+	float cResHalf;
+	float cRadius;
+	float cRadius2;
+};
+
+void main() {
+	uint id = gl_GlobalInvocationID.x;
+	if (id >= cNumCells) return;
+
+	//color grid coordinates
+	int cy = int(floor(id / cxCells));
+	int cx = int(id - cy * cxCells);
+
+	//ignore bottom left corners lying on right and top boundary
+	//if (cy >= cyCells - 1 || cx >= cxCells - 1) return;
+
+	//get color values
+	int cid = cy * cxCells + cx;
+	//corners in the following order: bottom left, bottom right, top right, top left
+	float cval[] = {colors[cid], colors[cid + 1], colors[cid + cxCells + 1],  colors[cid + cxCells]};
+
+	//get corner positions, same order as above
+	vec2 cpos[4];
+	cpos[0] = vec2(cx * cResolution, cy * cResolution);
+	cpos[1] = vec2((cx + 1) * cResolution, cy * cResolution);
+	cpos[2] = vec2((cx + 1) * cResolution, (cy + 1) * cResolution);
+	cpos[3] = vec2(cx * cResolution, (cy + 1) * cResolution);
+
+	//get colors
+	
+
+	//get possible case out of the available 15
+	int code = 0;
+	float minval = 0.0;
+	if (cval[0] > minval) code += 1;
+	if (cval[1] > minval) code += 2;
+	if (cval[2] > minval) code += 4;
+	if (cval[3] > minval) code += 8;
+
+	//average value (color at centre of cell) for deciding ambigous cases
+	float avg = (cval[0] + cval[1] + cval[2] + cval[3]) / 4.0;
+
+	//adjust id for indexing into vertex ssbo
+	cid *= 12;
+
+	//assume case 0, a lot of these vertices hold for other cases, faster to call clear buffer?
+	for (int i = cid; i < cid + 12; i++) {
+		msVertices[i] = msVertexData(vec4(0,0,0,0), vec4(0,0,0,0));
+	}
+
+	float hr = cResHalf;
+
+	//mid bottom, mid right, mid top, mid left
+	vec2 mid[4];
+	mid[0] = cpos[0] + vec2(hr, 0);
+	mid[1] = cpos[1] + vec2(0, hr);
+	mid[2] = cpos[2] - vec2(hr, 0);
+	mid[3] = cpos[3] - vec2(0, hr);
+
+	vec4 vColor = vec4(0,0.7,0.7,1);
+	
+//	msVertices[cid] = msVertexData(vec4(cpos[0], 0, 1), vColor);
+//	msVertices[cid + 1] = msVertexData(vec4(mid[0], 0, 1), vColor);
+//	msVertices[cid + 2] = msVertexData(vec4(mid[3], 0, 1), vColor);
+
+//	code = 15; //7 11 13 14
+
+//	avg = 1;
+
+	switch(code) {
+		
+		//basic single corner cases
+		case 1:
+			msVertices[cid] = msVertexData(vec4(cpos[0], 0, 1), vColor);
+			msVertices[cid + 1] = msVertexData(vec4(mid[0], 0, 1), vColor);
+			msVertices[cid + 2] = msVertexData(vec4(mid[3], 0, 1), vColor);
+			break;
+		case 2:
+			msVertices[cid] = msVertexData(vec4(cpos[1], 0, 1), vColor);
+			msVertices[cid + 1] = msVertexData(vec4(mid[1], 0, 1), vColor);
+			msVertices[cid + 2] = msVertexData(vec4(mid[0], 0, 1), vColor);
+			break;
+		case 4:
+			msVertices[cid] = msVertexData(vec4(cpos[2], 0, 1), vColor);
+			msVertices[cid + 1] = msVertexData(vec4(mid[2], 0, 1), vColor);
+			msVertices[cid + 2] = msVertexData(vec4(mid[1], 0, 1), vColor);
+			break;
+		case 8:
+			msVertices[cid] = msVertexData(vec4(cpos[3], 0, 1), vColor);
+			msVertices[cid + 1] = msVertexData(vec4(mid[3], 0, 1), vColor);
+			msVertices[cid + 2] = msVertexData(vec4(mid[2], 0, 1), vColor);
+			break;
+
+		//horizontal line cases
+		case 3:
+			msVertices[cid] = msVertexData(vec4(cpos[0], 0, 1), vColor);
+			msVertices[cid + 1] = msVertexData(vec4(cpos[1], 0, 1), vColor);
+			msVertices[cid + 2] = msVertexData(vec4(mid[3], 0, 1), vColor);
+			
+			msVertices[cid + 3] = msVertexData(vec4(cpos[1], 0, 1), vColor);
+			msVertices[cid + 4] = msVertexData(vec4(mid[1], 0, 1), vColor);
+			msVertices[cid + 5] = msVertexData(vec4(mid[3], 0, 1), vColor);
+			break;
+		case 12:
+			msVertices[cid] = msVertexData(vec4(cpos[2], 0, 1), vColor);
+			msVertices[cid + 1] = msVertexData(vec4(cpos[3], 0, 1), vColor);
+			msVertices[cid + 2] = msVertexData(vec4(mid[1], 0, 1), vColor);
+			
+			msVertices[cid + 3] = msVertexData(vec4(cpos[3], 0, 1), vColor);
+			msVertices[cid + 4] = msVertexData(vec4(mid[3], 0, 1), vColor);
+			msVertices[cid + 5] = msVertexData(vec4(mid[1], 0, 1), vColor);
+			break;
+
+		//vertical line cases
+		case 6:
+			msVertices[cid] = msVertexData(vec4(cpos[1], 0, 1), vColor);
+			msVertices[cid + 1] = msVertexData(vec4(cpos[2], 0, 1), vColor);
+			msVertices[cid + 2] = msVertexData(vec4(mid[0], 0, 1), vColor);
+			
+			msVertices[cid + 3] = msVertexData(vec4(cpos[2], 0, 1), vColor);
+			msVertices[cid + 4] = msVertexData(vec4(mid[2], 0, 1), vColor);
+			msVertices[cid + 5] = msVertexData(vec4(mid[0], 0, 1), vColor);
+			break;
+		case 9:
+			msVertices[cid] = msVertexData(vec4(cpos[0], 0, 1), vColor);
+			msVertices[cid + 1] = msVertexData(vec4(mid[0], 0, 1), vColor);
+			msVertices[cid + 2] = msVertexData(vec4(mid[2], 0, 1), vColor);
+			
+			msVertices[cid + 3] = msVertexData(vec4(cpos[3], 0, 1), vColor);
+			msVertices[cid + 4] = msVertexData(vec4(cpos[0], 0, 1), vColor);
+			msVertices[cid + 5] = msVertexData(vec4(mid[2], 0, 1), vColor);
+			break;
+
+		//3 point cases
+		case 7:
+			msVertices[cid] = msVertexData(vec4(cpos[0], 0, 1), vColor);
+			msVertices[cid + 1] = msVertexData(vec4(mid[2], 0, 1), vColor);
+			msVertices[cid + 2] = msVertexData(vec4(mid[3], 0, 1), vColor);
+			
+			msVertices[cid + 3] = msVertexData(vec4(cpos[0], 0, 1), vColor);
+			msVertices[cid + 4] = msVertexData(vec4(cpos[2], 0, 1), vColor);
+			msVertices[cid + 5] = msVertexData(vec4(mid[2], 0, 1), vColor);
+			
+			msVertices[cid + 6] = msVertexData(vec4(cpos[0], 0, 1), vColor);
+			msVertices[cid + 7] = msVertexData(vec4(cpos[1], 0, 1), vColor);
+			msVertices[cid + 8] = msVertexData(vec4(cpos[2], 0, 1), vColor);
+			break;
+		case 11:
+			msVertices[cid] = msVertexData(vec4(cpos[1], 0, 1), vColor);
+			msVertices[cid + 1] = msVertexData(vec4(mid[1], 0, 1), vColor);
+			msVertices[cid + 2] = msVertexData(vec4(mid[2], 0, 1), vColor);
+			
+			msVertices[cid + 3] = msVertexData(vec4(cpos[1], 0, 1), vColor);
+			msVertices[cid + 4] = msVertexData(vec4(mid[2], 0, 1), vColor);
+			msVertices[cid + 5] = msVertexData(vec4(cpos[3], 0, 1), vColor);
+			
+			msVertices[cid + 6] = msVertexData(vec4(cpos[1], 0, 1), vColor);
+			msVertices[cid + 7] = msVertexData(vec4(cpos[3], 0, 1), vColor);
+			msVertices[cid + 8] = msVertexData(vec4(cpos[0], 0, 1), vColor);
+			break;
+		case 13:
+			msVertices[cid] = msVertexData(vec4(cpos[0], 0, 1), vColor);
+			msVertices[cid + 1] = msVertexData(vec4(mid[0], 0, 1), vColor);
+			msVertices[cid + 2] = msVertexData(vec4(mid[1], 0, 1), vColor);
+			
+			msVertices[cid + 3] = msVertexData(vec4(cpos[0], 0, 1), vColor);
+			msVertices[cid + 4] = msVertexData(vec4(mid[1], 0, 1), vColor);
+			msVertices[cid + 5] = msVertexData(vec4(cpos[2], 0, 1), vColor);
+			
+			msVertices[cid + 6] = msVertexData(vec4(cpos[0], 0, 1), vColor);
+			msVertices[cid + 7] = msVertexData(vec4(cpos[2], 0, 1), vColor);
+			msVertices[cid + 8] = msVertexData(vec4(cpos[3], 0, 1), vColor);
+			break;
+		case 14:
+			msVertices[cid] = msVertexData(vec4(cpos[3], 0, 1), vColor);
+			msVertices[cid + 1] = msVertexData(vec4(mid[3], 0, 1), vColor);
+			msVertices[cid + 2] = msVertexData(vec4(mid[0], 0, 1), vColor);
+			
+			msVertices[cid + 3] = msVertexData(vec4(cpos[3], 0, 1), vColor);
+			msVertices[cid + 4] = msVertexData(vec4(mid[0], 0, 1), vColor);
+			msVertices[cid + 5] = msVertexData(vec4(cpos[1], 0, 1), vColor);
+			
+			msVertices[cid + 6] = msVertexData(vec4(cpos[3], 0, 1), vColor);
+			msVertices[cid + 7] = msVertexData(vec4(cpos[1], 0, 1), vColor);
+			msVertices[cid + 8] = msVertexData(vec4(cpos[2], 0, 1), vColor);
+			break;
+
+		//ambigous cases
+		case 5:
+			if (avg > 0.5) { //liquid is in centre of cell
+				msVertices[cid] = msVertexData(vec4(cpos[0], 0, 1), vColor);
+				msVertices[cid + 1] = msVertexData(vec4(mid[2], 0, 1), vColor);
+				msVertices[cid + 2] = msVertexData(vec4(mid[3], 0, 1), vColor);
+			
+				msVertices[cid + 3] = msVertexData(vec4(cpos[0], 0, 1), vColor);
+				msVertices[cid + 4] = msVertexData(vec4(cpos[2], 0, 1), vColor);
+				msVertices[cid + 5] = msVertexData(vec4(mid[2], 0, 1), vColor);
+			
+				msVertices[cid + 6] = msVertexData(vec4(cpos[0], 0, 1), vColor);
+				msVertices[cid + 7] = msVertexData(vec4(mid[1], 0, 1), vColor);
+				msVertices[cid + 8] = msVertexData(vec4(cpos[2], 0, 1), vColor);
+
+				msVertices[cid + 9] = msVertexData(vec4(cpos[0], 0, 1), vColor);
+				msVertices[cid + 10] = msVertexData(vec4(mid[0], 0, 1), vColor);
+				msVertices[cid + 11] = msVertexData(vec4(mid[1], 0, 1), vColor);
+			}
+			else {
+				msVertices[cid] = msVertexData(vec4(cpos[0], 0, 1), vColor);
+				msVertices[cid + 1] = msVertexData(vec4(mid[0], 0, 1), vColor);
+				msVertices[cid + 2] = msVertexData(vec4(mid[3], 0, 1), vColor);
+			
+				msVertices[cid + 3] = msVertexData(vec4(cpos[2], 0, 1), vColor);
+				msVertices[cid + 4] = msVertexData(vec4(mid[2], 0, 1), vColor);
+				msVertices[cid + 5] = msVertexData(vec4(mid[1], 0, 1), vColor);
+			}
+			break;
+		case 10:
+			if (avg > 0.5) { //liquid is in centre of cell
+				msVertices[cid] = msVertexData(vec4(cpos[3], 0, 1), vColor);
+				msVertices[cid + 1] = msVertexData(vec4(mid[3], 0, 1), vColor);
+				msVertices[cid + 2] = msVertexData(vec4(mid[0], 0, 1), vColor);
+			
+				msVertices[cid + 3] = msVertexData(vec4(cpos[3], 0, 1), vColor);
+				msVertices[cid + 4] = msVertexData(vec4(mid[0], 0, 1), vColor);
+				msVertices[cid + 5] = msVertexData(vec4(cpos[1], 0, 1), vColor);
+			
+				msVertices[cid + 6] = msVertexData(vec4(cpos[3], 0, 1), vColor);
+				msVertices[cid + 7] = msVertexData(vec4(cpos[1], 0, 1), vColor);
+				msVertices[cid + 8] = msVertexData(vec4(mid[1], 0, 1), vColor);
+
+				msVertices[cid + 9] = msVertexData(vec4(cpos[3], 0, 1), vColor);
+				msVertices[cid + 10] = msVertexData(vec4(mid[1], 0, 1), vColor);
+				msVertices[cid + 11] = msVertexData(vec4(mid[2], 0, 1), vColor);
+			}
+			else {
+				msVertices[cid] = msVertexData(vec4(cpos[3], 0, 1), vColor);
+				msVertices[cid + 1] = msVertexData(vec4(mid[3], 0, 1), vColor);
+				msVertices[cid + 2] = msVertexData(vec4(mid[2], 0, 1), vColor);
+			
+				msVertices[cid + 3] = msVertexData(vec4(cpos[1], 0, 1), vColor);
+				msVertices[cid + 4] = msVertexData(vec4(mid[1], 0, 1), vColor);
+				msVertices[cid + 5] = msVertexData(vec4(mid[0], 0, 1), vColor);
+			}
+			break;
+
+		//full case
+		case 15:
+			msVertices[cid] = msVertexData(vec4(cpos[0], 0, 1), vColor);
+			msVertices[cid + 1] = msVertexData(vec4(cpos[1], 0, 1), vColor);
+			msVertices[cid + 2] = msVertexData(vec4(cpos[3], 0, 1), vColor);
+			
+			msVertices[cid + 3] = msVertexData(vec4(cpos[1], 0, 1), vColor);
+			msVertices[cid + 4] = msVertexData(vec4(cpos[2], 0, 1), vColor);
+			msVertices[cid + 5] = msVertexData(vec4(cpos[3], 0, 1), vColor);
+			break;
+	}
+}
