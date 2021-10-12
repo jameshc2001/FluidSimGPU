@@ -3,6 +3,8 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
+//this is a test
+
 namespace guiVariables {
 	inline int editMode = 0;
 
@@ -56,7 +58,7 @@ namespace constants {
 	inline constexpr int P_NUM_CELLS = P_X_CELLS * P_Y_CELLS + 1; //the +1 is for figuring out if we have reached the end of last cell
 
 	//color grid details, here the +1s are for corners on the top and right side of the screen
-	inline constexpr float COLOR_RESOLUTION = PARTICLE_RADIUS; //for best results choose multiple of width and height
+	inline constexpr float COLOR_RESOLUTION = PARTICLE_DIAMETER; //for best results choose multiple of width and height
 	inline constexpr float C_RES_HALF = COLOR_RESOLUTION / 2.0f;
 	inline constexpr float C_RADIUS = KERNEL_RADIUS / 2.0f;
 	inline constexpr float C_RADIUS_2 = C_RADIUS * C_RADIUS;
