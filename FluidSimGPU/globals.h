@@ -60,7 +60,7 @@ namespace constants {
 	//color grid details, here the +1s are for corners on the top and right side of the screen
 	inline constexpr float COLOR_RESOLUTION = PARTICLE_DIAMETER; //for best results choose multiple of width and height
 	inline constexpr float C_RES_HALF = COLOR_RESOLUTION / 2.0f;
-	inline constexpr float C_RADIUS = KERNEL_RADIUS / 2.0f;
+	inline constexpr float C_RADIUS = KERNEL_RADIUS / 2.0f; //radius for which we check particles when calculating color
 	inline constexpr float C_RADIUS_2 = C_RADIUS * C_RADIUS;
 	inline constexpr int C_X_CELLS = (int)(constants::SCREEN_WIDTH / COLOR_RESOLUTION) + 1;
 	inline constexpr int C_Y_CELLS = (int)(constants::SCREEN_HEIGHT / COLOR_RESOLUTION) + 1;

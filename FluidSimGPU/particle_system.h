@@ -61,7 +61,6 @@ private:
 	Shader sortShader;
 
 	std::array<float, constants::MAX_PARTICLES * 6 * 5> vertexData;
-	unsigned int VBO, VAO;
 
 	int prevNumParticles = 0;
 	bool particlesChanged = false; //if true we need to completely reallocate vertex buffer

@@ -9,21 +9,9 @@ ParticleSystem::ParticleSystem() {
 }
 
 void ParticleSystem::initialise() {
-	//setup rendering stuff
-	glGenVertexArrays(1, &VAO);
-	glGenBuffers(1, &VBO);
-
-	glBindVertexArray(VAO);
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0); //vertex position
-	glEnableVertexAttribArray(0);
-
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(sizeof(float) * 2)); //vertex color
-	glEnableVertexAttribArray(1);
-
 	glPointSize(PARTICLE_DIAMETER);
 
+	//load point shader and set projection matrix
 	particlePointShader.load("shaders/particlePoint.vert", "shaders/particlePoint.frag");
 	glm::mat4 projection = glm::ortho(0.0f, (float)SCREEN_WIDTH, 0.0f, (float)SCREEN_HEIGHT, -1.0f, 1.0f);
 	particlePointShader.use();
@@ -123,7 +111,6 @@ void ParticleSystem::initialise() {
 	//send particle properties to gpu
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, propertiesSSBO);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(ParticleProperties) * particleProperties.size() + sizeof(float) * MAX_PARTICLES, NULL, GL_DYNAMIC_DRAW);
-	//glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(ParticleProperties) * particleProperties.size(), &particleProperties[0], GL_DYNAMIC_DRAW);
 	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(ParticleProperties)* particleProperties.size(), &particleProperties[0]);
 
 	//setup particle buffer to be max size, multiply by 2 for particle sorting operations
@@ -133,7 +120,6 @@ void ParticleSystem::initialise() {
 
 	//allocate grid data
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, gridCellSSBO);
-	//glBufferData(GL_SHADER_STORAGE_BUFFER, P_NUM_CELLS * sizeof(int) * 4, NULL, GL_DYNAMIC_DRAW);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, P_NUM_CELLS * sizeof(int) * 3 + MAX_PARTICLES * sizeof(int), NULL, GL_DYNAMIC_DRAW);
 
 	//allocate vertex ssbo
@@ -204,13 +190,15 @@ void ParticleSystem::updateGridGPU() {
 	GLint zero = 0;
 	glClearBufferData(GL_SHADER_STORAGE_BUFFER, GL_R32I, GL_RED, GL_INT, &zero); //set grid data to all 0s
 
+	//calculate number of particles in each cell and store each particles individual offset for later
 	prepareShader.use();
 	glDispatchCompute(ceil((float)particles / 1024.0f), 1, 1); //generate counters and copy particles over
 
 	//gridCellSSBO still binded. Here we copy counters over to 2nd section of gridData array
 	glCopyBufferSubData(GL_SHADER_STORAGE_BUFFER, GL_SHADER_STORAGE_BUFFER, 0, sizeof(int) * P_NUM_CELLS, sizeof(int) * P_NUM_CELLS);
 
-	//now do crazy prefix stuff
+	//do prefix sum on list of particle cell amounts see wikipedia for algorithm
+	//note: I do a conversion to exclusive prefix on the final iteration
 	prefixIterationShader.use();
 	prefixIterationShader.setInt("finalPrefixIteration", 0);
 	int flag = 1;
@@ -224,6 +212,8 @@ void ParticleSystem::updateGridGPU() {
 		else flag = 0;
 	}
 
+	//using the exclusive prefix list and previously computed indiviual offsets to move
+	//particles into their correction positions within the particle buffer
 	sortShader.use();
 	glDispatchCompute(ceil((float)particles / 1024.0f), 1, 1);
 }
@@ -252,54 +242,59 @@ void ParticleSystem::printColorData() {
 void ParticleSystem::updateParticles() {
 	if (particles == 0) return;
 
+	//sort particles for efficiency
 	updateGridGPU();
 
 	//render before updating, this may seem odd but rendering appears better when using
 	//the most up to date grid information so it is best to fall a frame behind
 
 	if (drawMs) {
-		colorShader.use();
+		colorShader.use(); //generates colour values
 		glDispatchCompute(ceil((float)C_NUM_CELLS / 1024.0f), 1, 1);
 
-		genMSVerticesShader.use();
+		genMSVerticesShader.use(); //convertes colour grid into vertices for rendering
 		glDispatchCompute(ceil((float)C_NUM_CELLS / 1024.0f), 1, 1);
 	}
 
 	if (drawParticles) {
-		genVerticesShader.use();
+		genVerticesShader.use(); //simply creates vertex for each particle
 		glDispatchCompute(ceil((float)particles / 1024.0f), 1, 1);
 	}
 
 
-	//reset final iteration
+	//reset final iteration, this is used for knowing when to save densities for color generating
 	glBindBuffer(GL_UNIFORM_BUFFER, simUBO);
 	int finalIteration = 0;
 	glBufferSubData(GL_UNIFORM_BUFFER, 10 * sizeof(int), sizeof(int), &finalIteration);
 
-	//now update simulation
-
+	//now update simulation, this is done in another loop because we can use the current grid data
+	//for multiple updates because particle neighbours will only change a small amount
 	for (int substep = 0; substep < SUBSTEPS; substep++) {
 		if (substep == SUBSTEPS - 1) {
 			finalIteration = 1;
 			glBufferSubData(GL_UNIFORM_BUFFER, 10 * sizeof(int), sizeof(int), &finalIteration);
 		}
 
+		//apply external forces and move particles to predicted (naive) position
 		predictShader.use();
 		glDispatchCompute(ceil((float)particles / 1024.0f), 1, 1);
 
+		//calculate lambdas using sph density constraint function
 		calcLamdasShader.use();
 		glDispatchCompute(ceil((float)particles / 1024.0f), 1, 1);
 
+		//use lambdas and apply artifical pressure to update initial prediction of position
+		//also calculates velocity of particles using previous position and predicted position
 		improveShader.use();
 		glDispatchCompute(ceil((float)particles / 1024.0f), 1, 1);
 
+		//apply viscosity using velocity values and then set the particles actual position
+		//to the predicted position
 		applyShader.use();
 		glDispatchCompute(ceil((float)particles / 1024.0f), 1, 1);
 		
-		//boundary shader can be used to prevent any sort of bias when applying and calculating visocisites
-		//relevant changes would need to be made in apply shader
-		//boundaryShader.use();
-		//glDispatchCompute(ceil((float)particles / 1024.0f), 1, 1);
+
+		//interesting to explore how difficult/easy to per particle things (heat, reactions)
 	}
 }
 
@@ -332,9 +327,7 @@ void ParticleSystem::render() {
 }
 
 void ParticleSystem::close() {
-	glDeleteVertexArrays(1, &VAO);
 	glDeleteVertexArrays(1, &pointVAO);
-	glDeleteBuffers(1, &VBO);
 	glDeleteBuffers(1, &gridCellSSBO);
 	glDeleteBuffers(1, &particleSSBO);
 	glDeleteBuffers(1, &propertiesSSBO);

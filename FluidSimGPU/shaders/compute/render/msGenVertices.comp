@@ -73,7 +73,7 @@ void main() {
 
 	//get possible case out of the available 15
 	int code = 0;
-	float minval = 0.0;
+	float minval = 0.2;
 	if (cval[0] > minval) code += 1;
 	if (cval[1] > minval) code += 2;
 	if (cval[2] > minval) code += 4;
@@ -83,7 +83,7 @@ void main() {
 	float avg = (cval[0] + cval[1] + cval[2] + cval[3]) / 4.0;
 
 	//adjust id for indexing into vertex ssbo
-	cid *= 12;
+	cid *= 12; //by 12 because 12 possible vertices per cell
 
 	//assume case 0, a lot of these vertices hold for other cases, faster to call clear buffer?
 	for (int i = cid; i < cid + 12; i++) {

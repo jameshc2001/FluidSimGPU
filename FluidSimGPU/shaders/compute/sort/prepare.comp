@@ -55,7 +55,7 @@ void main() {
 	if (id >= numParticles) return;
 
 	Particle p = particles[id];
-	particles[id + numParticles] = p; //copy 
+	particles[id + numParticles] = p; //copy particle so it doesn't get overwritten later
 
 	int px = int(floor(p.position.x / kernelRadius));
 	int py = int(floor(p.position.y / kernelRadius));

@@ -77,7 +77,7 @@ void main() {
 		}
 	}
 
-	if (finalPrefixIteration == 1) { //convert to exclusive prefix
+	if (finalPrefixIteration == 1) { //convert to exclusive prefix, do this by subtracting initial amounts
 		if (flag == 0) {
 			gridData[id] = gridData[numCells + id] - gridData[id];
 		}
