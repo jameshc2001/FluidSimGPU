@@ -7,12 +7,19 @@ struct msVertexData {
 	vec4 color;
 };
 
+struct Color {
+	float value;
+	float density;
+	vec2 velocity;
+	vec4 rgba;
+};
+
 layout(std430, binding = 5) buffer msVertexBuffer {
 	msVertexData msVertices[];
 };
 
 layout(std430, binding = 4) buffer ColorBuffer {
-	float colors[];
+	Color colors[];
 };
 
 layout(std140, binding = 0) uniform SimulationValues {
@@ -53,10 +60,9 @@ void main() {
 	int cy = int(floor(id / cxCells));
 	int cx = int(id - cy * cxCells);
 
-	//get color values
+	//get colors from 4 vertices, order: bottom left, bottom right, top right, top left
 	int cid = cy * cxCells + cx;
-	//corners in the following order: bottom left, bottom right, top right, top left
-	float cval[] = {colors[cid],
+	Color vCols[4] = {colors[cid],
 					colors[cid + 1],
 					colors[cid + cxCells + 1],
 					colors[cid + cxCells]};
@@ -74,13 +80,13 @@ void main() {
 	//get possible case out of the available 15
 	int code = 0;
 	float minval = 1.0;
-	if (cval[0] > minval) code += 1;
-	if (cval[1] > minval) code += 2;
-	if (cval[2] > minval) code += 4;
-	if (cval[3] > minval) code += 8;
+	if (vCols[0].value > minval) code += 1;
+	if (vCols[1].value > minval) code += 2;
+	if (vCols[2].value > minval) code += 4;
+	if (vCols[3].value > minval) code += 8;
 
 	//average value (color at centre of cell) for deciding ambigous cases
-	float avg = (cval[0] + cval[1] + cval[2] + cval[3]) / 4.0;
+	float avg = (vCols[0].value + vCols[1].value + vCols[2].value + vCols[3].value) / 4.0;
 
 	//adjust id for indexing into vertex ssbo
 	cid *= 12; //by 12 because 12 possible vertices per cell
@@ -103,10 +109,10 @@ void main() {
 	//for each mid point we first figure out which way we are interopolating towards
 	//we then decide that the metaball function will evaulate to minval at our desired point, finally rearrange to find desired point
 
-	mid[0] = vec2(cpos[1].x + (cpos[0].x - cpos[1].x) * ((minval - cval[1]) / (cval[0] - cval[1])), cpos[1].y);
-	mid[1] = vec2(cpos[2].x, cpos[2].y + (cpos[1].y - cpos[2].y) * ((minval - cval[2]) / (cval[1] - cval[2])));
-	mid[2] = vec2(cpos[3].x + (cpos[2].x - cpos[3].x) * ((minval - cval[3]) / (cval[2] - cval[3])), cpos[3].y);
-	mid[3] = vec2(cpos[0].x, cpos[0].y + (cpos[3].y - cpos[0].y) * ((minval - cval[0]) / (cval[3] - cval[0])));
+	mid[0] = vec2(cpos[1].x + (cpos[0].x - cpos[1].x) * ((minval - vCols[1].value) / (vCols[0].value - vCols[1].value)), cpos[1].y);
+	mid[1] = vec2(cpos[2].x, cpos[2].y + (cpos[1].y - cpos[2].y) * ((minval - vCols[2].value) / (vCols[1].value - vCols[2].value)));
+	mid[2] = vec2(cpos[3].x + (cpos[2].x - cpos[3].x) * ((minval - vCols[3].value) / (vCols[2].value - vCols[3].value)), cpos[3].y);
+	mid[3] = vec2(cpos[0].x, cpos[0].y + (cpos[3].y - cpos[0].y) * ((minval - vCols[0].value) / (vCols[3].value - vCols[0].value)));
 
 //	//mid bottom
 //	if (cval[0] > minval && cval[1] < minval) {

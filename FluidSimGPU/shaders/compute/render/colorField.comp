@@ -21,6 +21,13 @@ struct Properties { //particle properties
 	vec4 color;
 };
 
+struct Color {
+	float value;
+	float density;
+	vec2 velocity;
+	vec4 rgba;
+};
+
 layout(std430, binding = 0) buffer ParticleBuffer {
 	Particle particles[];
 };
@@ -35,7 +42,7 @@ layout(std430, binding = 2) buffer PropertiesBuffer {
 };
 
 layout(std430, binding = 4) buffer ColorBuffer {
-	float colors[];
+	Color colors[];
 };
 
 layout(std140, binding = 0) uniform SimulationValues {
@@ -81,7 +88,8 @@ void main() {
 	int px = int(floor(position.x / kernelRadius));
 	int py = int(floor(position.y / kernelRadius));
 
-	float color = 0.0;
+	Color color = {0, 0, vec2(0, 0), vec4(0, 0, 0, 0)};
+	int neighbours = 0;
 
 	for (int y = py - 1; y <= py + 1; y++) {
 		for (int x = px - 1; x <= px + 1; x++) {
@@ -105,13 +113,19 @@ void main() {
 //					float polyTemp = kr2 - dist2;
 //					color += (oMass * poly6 * polyTemp * polyTemp * polyTemp) / o.lamda;
 
-					color += (particleRadius * particleRadius) / dist2;
-					
+					color.value += (particleRadius * particleRadius) / dist2;
+					color.density += o.lamda;
+					color.velocity += o.velocity;
+					color.rgba += properties[o.properties].color;
+					neighbours++;
 
 				}
 			}
 		}
 	}
+	color.density /= neighbours;
+	color.velocity /= neighbours;
+	color.rgba /= neighbours; //take average of colours
 
 	colors[id] = color;
 
