@@ -95,28 +95,34 @@ void main() {
 				float dist2 = dot(difference, difference);
 
 				if (dist2 < cRadius2) {
-					float oMass = properties[o.properties].mass;
-
-//					float polyTemp = kr2 - dist2;
-//					color += (oMass * poly6 * polyTemp * polyTemp * polyTemp);// / o.density;
+					//float oMass = properties[o.properties].mass;
 
 					//ok so i think we should really be using densities here but we will have to see
 					//i think using the densites kind of normalises the color values, will be a lot better
 					//for the planned linear interpolation
 
 					//density stored in lambda for optimisation purposes
-					float polyTemp = kr2 - dist2;
-					color += (oMass * poly6 * polyTemp * polyTemp * polyTemp) / o.lamda;
+//					float polyTemp = kr2 - dist2;
+//					color += (oMass * poly6 * polyTemp * polyTemp * polyTemp) / o.lamda;
 
+					color += (particleRadius * particleRadius) / dist2;
+					
 
-//					float polyTemp = kernelRadius * kernelRadius - dist2;
-//					color += poly6 * polyTemp * polyTemp * polyTemp;
 				}
 			}
 		}
 	}
 
 	colors[id] = color;
+
+//	if (alternate == 1) {
+//		colors[id] = color;
+//	}
+//	else {
+//		colors[id + cNumCells] = color;
+//	}
+//
+	//colors[id] = color;
 //	if (color > 0) colors[id] = 1;
 //	else colors[id] = 0;
 }

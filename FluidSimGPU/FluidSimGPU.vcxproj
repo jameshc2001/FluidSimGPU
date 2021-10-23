@@ -185,7 +185,6 @@
     <None Include="shaders\compute\sort\prepare.comp" />
     <None Include="shaders\compute\sort\sort.comp" />
     <None Include="shaders\compute\update\apply.comp" />
-    <None Include="shaders\compute\update\boundary.comp" />
     <None Include="shaders\compute\update\calcLamdas.comp" />
     <None Include="shaders\compute\render\colorField.comp" />
     <None Include="shaders\compute\render\genVertices.comp" />

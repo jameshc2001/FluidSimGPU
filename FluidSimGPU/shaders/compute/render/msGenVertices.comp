@@ -53,13 +53,13 @@ void main() {
 	int cy = int(floor(id / cxCells));
 	int cx = int(id - cy * cxCells);
 
-	//ignore bottom left corners lying on right and top boundary
-	//if (cy >= cyCells - 1 || cx >= cxCells - 1) return;
-
 	//get color values
 	int cid = cy * cxCells + cx;
 	//corners in the following order: bottom left, bottom right, top right, top left
-	float cval[] = {colors[cid], colors[cid + 1], colors[cid + cxCells + 1],  colors[cid + cxCells]};
+	float cval[] = {colors[cid],
+					colors[cid + 1],
+					colors[cid + cxCells + 1],
+					colors[cid + cxCells]};
 
 	//get corner positions, same order as above
 	vec2 cpos[4];
@@ -68,12 +68,12 @@ void main() {
 	cpos[2] = vec2((cx + 1) * cResolution, (cy + 1) * cResolution);
 	cpos[3] = vec2(cx * cResolution, (cy + 1) * cResolution);
 
-	//get colors
+	//get rgb colors
 	
 
 	//get possible case out of the available 15
 	int code = 0;
-	float minval = 0.2;
+	float minval = 1.0;
 	if (cval[0] > minval) code += 1;
 	if (cval[1] > minval) code += 2;
 	if (cval[2] > minval) code += 4;
@@ -94,10 +94,76 @@ void main() {
 
 	//mid bottom, mid right, mid top, mid left
 	vec2 mid[4];
-	mid[0] = cpos[0] + vec2(hr, 0);
-	mid[1] = cpos[1] + vec2(0, hr);
-	mid[2] = cpos[2] - vec2(hr, 0);
-	mid[3] = cpos[3] - vec2(0, hr);
+//	mid[0] = cpos[0] + vec2(hr, 0);
+//	mid[1] = cpos[1] + vec2(0, hr);
+//	mid[2] = cpos[2] - vec2(hr, 0);
+//	mid[3] = cpos[3] - vec2(0, hr);
+
+	//linear interpolation time ;( thankfully only applies to mid points
+	//for each mid point we first figure out which way we are interopolating towards
+	//we then decide that the metaball function will evaulate to minval at our desired point, finally rearrange to find desired point
+
+	mid[0] = vec2(cpos[1].x + (cpos[0].x - cpos[1].x) * ((minval - cval[1]) / (cval[0] - cval[1])), cpos[1].y);
+	mid[1] = vec2(cpos[2].x, cpos[2].y + (cpos[1].y - cpos[2].y) * ((minval - cval[2]) / (cval[1] - cval[2])));
+	mid[2] = vec2(cpos[3].x + (cpos[2].x - cpos[3].x) * ((minval - cval[3]) / (cval[2] - cval[3])), cpos[3].y);
+	mid[3] = vec2(cpos[0].x, cpos[0].y + (cpos[3].y - cpos[0].y) * ((minval - cval[0]) / (cval[3] - cval[0])));
+
+//	//mid bottom
+//	if (cval[0] > minval && cval[1] < minval) {
+//		mid[0] = vec2(cpos[1].x + (cpos[0].x - cpos[1].x) * ((minval - cval[1]) / (cval[0] - cval[1])), cpos[1].y);
+//	}
+//	else if (cval[1] > minval && cval[0] < minval) {
+//		mid[0] = vec2(cpos[0].x + (cpos[1].x - cpos[0].x) * ((minval - cval[0]) / (cval[1] - cval[0])), cpos[0].y);
+//	}
+//
+//	//mid right
+//	if (cval[1] > minval && cval[2] < minval) {
+//		mid[1] = vec2(cpos[2].x, cpos[2].y + (cpos[1].y - cpos[2].y) * ((minval - cval[2]) / (cval[1] - cval[2])));
+//	}
+//	else if (cval[2] > minval && cval[1] < minval) {
+//		mid[1] = vec2(cpos[1].x, cpos[1].y + (cpos[2].y - cpos[1].y) * ((minval - cval[1]) / (cval[2] - cval[1])));
+//	}
+//
+//	//mid top
+//	if (cval[2] > minval && cval[3] < minval) {
+//		mid[2] = vec2(cpos[3].x + (cpos[2].x - cpos[3].x) * ((minval - cval[3]) / (cval[2] - cval[3])), cpos[3].y);
+//	}
+//	else if (cval[2] > minval && cval[1] < minval) {
+//		mid[2] = vec2(cpos[2].x + (cpos[3].x - cpos[2].x) * ((minval - cval[2]) / (cval[3] - cval[2])), cpos[2].y);
+//	}
+//
+//	//mid left
+//	if (cval[3] > minval && cval[0] < minval) {
+//		mid[3] = vec2(cpos[0].x, cpos[0].y + (cpos[3].y - cpos[0].y) * ((minval - cval[0]) / (cval[3] - cval[0])));
+//	}
+//	else if (cval[0] > minval && cval[3] < minval) {
+//		mid[3] = vec2(cpos[3].x, cpos[3].y + (cpos[0].y - cpos[3].y) * ((minval - cval[3]) / (cval[0] - cval[3])));
+//	}
+
+
+	//interpolation time, practice on mid right. What if denominator because 0 by luck???? sad
+	//mid[1] = mix(cpos[1], cpos[2], 0.1);
+//	float help = 1.0 / minval;
+//	if (cval[0] > cval[1]) mid[0] = mix(cpos[0], cpos[1], cval[1] * help - 0.5);
+//	else mid[0] = mix(cpos[1], cpos[0], cval[0] * help - 0.5);
+//
+//	if (cval[1] > cval[2]) mid[1] = mix(cpos[1], cpos[2], cval[2] * help - 0.5);
+//	else mid[1] = mix(cpos[2], cpos[1], cval[1] * help - 0.5);
+//
+//	if (cval[2] > cval[3]) mid[2] = mix(cpos[2], cpos[3], cval[3] * help - 0.5);
+//	else mid[2] = mix(cpos[3], cpos[2], cval[2] * help - 0.5);
+//
+//	if (cval[3] > cval[1]) mid[3] = mix(cpos[3], cpos[1], cval[1] * help - 0.5);
+//	else mid[3] = mix(cpos[1], cpos[3], cval[3] * help - 0.5);
+
+	//float scale = 1.0 / (cval[1] + cval[2]);
+	//mid[1] = (cpos[1] * cval[1] + cpos[2] * cval[2]) / (cval[1] + cval[2]);
+
+//	for (int i = 0; i < 4; i++) {
+//		int o = (i + 1) % 4;
+//		if (cval[i] > cval[o]) mid[i] = mix(cpos[i], cpos[o], cval[o]);
+//		else mid[i] = mix(cpos[o], cpos[i], cval[i]);
+//	}
 
 	vec4 vColor = vec4(0,0.7,0.7,1);
 	

@@ -23,7 +23,6 @@ void ParticleSystem::initialise() {
 	calcLamdasShader.loadCompute("shaders/compute/update/calcLamdas.comp");
 	improveShader.loadCompute("shaders/compute/update/improve.comp");
 	applyShader.loadCompute("shaders/compute/update/apply.comp");
-	boundaryShader.loadCompute("shaders/compute/update/boundary.comp");
 
 	//vertex generation shaders
 	genVerticesShader.loadCompute("shaders/compute/render/genVertices.comp");
@@ -128,7 +127,7 @@ void ParticleSystem::initialise() {
 
 	//set size of color field ssbo
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, colorSSBO);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(float) * C_NUM_CELLS, NULL, GL_DYNAMIC_DRAW);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(float) * C_NUM_CELLS * 2, NULL, GL_DYNAMIC_DRAW); //*2 because we want old values
 
 	//set size of msSSBO
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, msSSBO);
