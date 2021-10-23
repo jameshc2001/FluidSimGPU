@@ -52,6 +52,19 @@ layout(std140, binding = 0) uniform SimulationValues {
 	float cRadius2;
 };
 
+float minval = 1.0; //important!
+
+Color lerp(Color c1, Color c2) {
+	Color c = {0, 0, vec2(0, 0), vec4(0, 0, 0, 0)};
+
+	float scale = (minval - c2.value) / (c1.value - c2.value);
+	c.density = c2.density + (c1.density - c2.density) * scale;
+	c.velocity = c2.velocity + (c1.velocity - c2.velocity) * scale;
+	c.rgba = c2.rgba + (c1.rgba - c2.rgba) * scale;
+
+	return c;
+}
+
 void main() {
 	uint id = gl_GlobalInvocationID.x;
 	if (id >= cNumCells) return;
@@ -79,7 +92,6 @@ void main() {
 
 	//get possible case out of the available 15
 	int code = 0;
-	float minval = 1.0;
 	if (vCols[0].value > minval) code += 1;
 	if (vCols[1].value > minval) code += 2;
 	if (vCols[2].value > minval) code += 4;
@@ -96,90 +108,21 @@ void main() {
 		msVertices[i] = msVertexData(vec4(0,0,0,0), vec4(0,0,0,0));
 	}
 
-	float hr = cResHalf;
-
-	//mid bottom, mid right, mid top, mid left
+	//mid bottom, mid right, mid top, mid left. Apply linear interploation as we go
 	vec2 mid[4];
-//	mid[0] = cpos[0] + vec2(hr, 0);
-//	mid[1] = cpos[1] + vec2(0, hr);
-//	mid[2] = cpos[2] - vec2(hr, 0);
-//	mid[3] = cpos[3] - vec2(0, hr);
-
-	//linear interpolation time ;( thankfully only applies to mid points
-	//for each mid point we first figure out which way we are interopolating towards
-	//we then decide that the metaball function will evaulate to minval at our desired point, finally rearrange to find desired point
-
 	mid[0] = vec2(cpos[1].x + (cpos[0].x - cpos[1].x) * ((minval - vCols[1].value) / (vCols[0].value - vCols[1].value)), cpos[1].y);
 	mid[1] = vec2(cpos[2].x, cpos[2].y + (cpos[1].y - cpos[2].y) * ((minval - vCols[2].value) / (vCols[1].value - vCols[2].value)));
 	mid[2] = vec2(cpos[3].x + (cpos[2].x - cpos[3].x) * ((minval - vCols[3].value) / (vCols[2].value - vCols[3].value)), cpos[3].y);
 	mid[3] = vec2(cpos[0].x, cpos[0].y + (cpos[3].y - cpos[0].y) * ((minval - vCols[0].value) / (vCols[3].value - vCols[0].value)));
 
-//	//mid bottom
-//	if (cval[0] > minval && cval[1] < minval) {
-//		mid[0] = vec2(cpos[1].x + (cpos[0].x - cpos[1].x) * ((minval - cval[1]) / (cval[0] - cval[1])), cpos[1].y);
-//	}
-//	else if (cval[1] > minval && cval[0] < minval) {
-//		mid[0] = vec2(cpos[0].x + (cpos[1].x - cpos[0].x) * ((minval - cval[0]) / (cval[1] - cval[0])), cpos[0].y);
-//	}
-//
-//	//mid right
-//	if (cval[1] > minval && cval[2] < minval) {
-//		mid[1] = vec2(cpos[2].x, cpos[2].y + (cpos[1].y - cpos[2].y) * ((minval - cval[2]) / (cval[1] - cval[2])));
-//	}
-//	else if (cval[2] > minval && cval[1] < minval) {
-//		mid[1] = vec2(cpos[1].x, cpos[1].y + (cpos[2].y - cpos[1].y) * ((minval - cval[1]) / (cval[2] - cval[1])));
-//	}
-//
-//	//mid top
-//	if (cval[2] > minval && cval[3] < minval) {
-//		mid[2] = vec2(cpos[3].x + (cpos[2].x - cpos[3].x) * ((minval - cval[3]) / (cval[2] - cval[3])), cpos[3].y);
-//	}
-//	else if (cval[2] > minval && cval[1] < minval) {
-//		mid[2] = vec2(cpos[2].x + (cpos[3].x - cpos[2].x) * ((minval - cval[2]) / (cval[3] - cval[2])), cpos[2].y);
-//	}
-//
-//	//mid left
-//	if (cval[3] > minval && cval[0] < minval) {
-//		mid[3] = vec2(cpos[0].x, cpos[0].y + (cpos[3].y - cpos[0].y) * ((minval - cval[0]) / (cval[3] - cval[0])));
-//	}
-//	else if (cval[0] > minval && cval[3] < minval) {
-//		mid[3] = vec2(cpos[3].x, cpos[3].y + (cpos[0].y - cpos[3].y) * ((minval - cval[3]) / (cval[0] - cval[3])));
-//	}
-
-
-	//interpolation time, practice on mid right. What if denominator because 0 by luck???? sad
-	//mid[1] = mix(cpos[1], cpos[2], 0.1);
-//	float help = 1.0 / minval;
-//	if (cval[0] > cval[1]) mid[0] = mix(cpos[0], cpos[1], cval[1] * help - 0.5);
-//	else mid[0] = mix(cpos[1], cpos[0], cval[0] * help - 0.5);
-//
-//	if (cval[1] > cval[2]) mid[1] = mix(cpos[1], cpos[2], cval[2] * help - 0.5);
-//	else mid[1] = mix(cpos[2], cpos[1], cval[1] * help - 0.5);
-//
-//	if (cval[2] > cval[3]) mid[2] = mix(cpos[2], cpos[3], cval[3] * help - 0.5);
-//	else mid[2] = mix(cpos[3], cpos[2], cval[2] * help - 0.5);
-//
-//	if (cval[3] > cval[1]) mid[3] = mix(cpos[3], cpos[1], cval[1] * help - 0.5);
-//	else mid[3] = mix(cpos[1], cpos[3], cval[3] * help - 0.5);
-
-	//float scale = 1.0 / (cval[1] + cval[2]);
-	//mid[1] = (cpos[1] * cval[1] + cpos[2] * cval[2]) / (cval[1] + cval[2]);
-
-//	for (int i = 0; i < 4; i++) {
-//		int o = (i + 1) % 4;
-//		if (cval[i] > cval[o]) mid[i] = mix(cpos[i], cpos[o], cval[o]);
-//		else mid[i] = mix(cpos[o], cpos[i], cval[i]);
-//	}
+	//get middle colours, with their values lerped
+	Color mCols[4];
+	mCols[0] = lerp(vCols[0], vCols[1]);
+	mCols[1] = lerp(vCols[1], vCols[2]);
+	mCols[2] = lerp(vCols[2], vCols[3]);
+	mCols[3] = lerp(vCols[3], vCols[0]);
 
 	vec4 vColor = vec4(0,0.7,0.7,1);
-	
-//	msVertices[cid] = msVertexData(vec4(cpos[0], 0, 1), vColor);
-//	msVertices[cid + 1] = msVertexData(vec4(mid[0], 0, 1), vColor);
-//	msVertices[cid + 2] = msVertexData(vec4(mid[3], 0, 1), vColor);
-
-//	code = 15; //7 11 13 14
-
-//	avg = 1;
 
 	switch(code) {
 		
@@ -301,7 +244,7 @@ void main() {
 
 		//ambigous cases
 		case 5:
-			if (avg > 0.5) { //liquid is in centre of cell
+			if (avg > minval) { //liquid is in centre of cell
 				msVertices[cid] = msVertexData(vec4(cpos[0], 0, 1), vColor);
 				msVertices[cid + 1] = msVertexData(vec4(mid[2], 0, 1), vColor);
 				msVertices[cid + 2] = msVertexData(vec4(mid[3], 0, 1), vColor);
@@ -329,7 +272,7 @@ void main() {
 			}
 			break;
 		case 10:
-			if (avg > 0.5) { //liquid is in centre of cell
+			if (avg > minval) { //liquid is in centre of cell
 				msVertices[cid] = msVertexData(vec4(cpos[3], 0, 1), vColor);
 				msVertices[cid + 1] = msVertexData(vec4(mid[3], 0, 1), vColor);
 				msVertices[cid + 2] = msVertexData(vec4(mid[0], 0, 1), vColor);
