@@ -127,7 +127,7 @@ void ParticleSystem::initialise() {
 
 	//set size of color field ssbo
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, colorSSBO);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(float) * C_NUM_CELLS * 2, NULL, GL_DYNAMIC_DRAW); //*2 because we want old values
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(float)* C_NUM_CELLS, NULL, GL_DYNAMIC_DRAW);
 
 	//set size of msSSBO
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, msSSBO);
