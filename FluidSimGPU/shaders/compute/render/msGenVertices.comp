@@ -2,24 +2,18 @@
 
 layout (local_size_x = 1024) in; //working in 1D
 
-struct msVertexData {
+struct VertexData {
 	vec4 position;
 	vec4 color;
 };
 
-struct Color {
-	float value;
-	float density;
-	vec2 velocity;
-	vec4 rgba;
-};
-
 layout(std430, binding = 5) buffer msVertexBuffer {
-	msVertexData msVertices[];
+	VertexData msVertices[];
 };
 
 layout(std430, binding = 4) buffer ColorBuffer {
-	Color colors[];
+	float values[103576];
+	vec4 colors[103576];
 };
 
 layout(std140, binding = 0) uniform SimulationValues {
@@ -53,17 +47,43 @@ layout(std140, binding = 0) uniform SimulationValues {
 };
 
 float minval = 1.0; //important!
+float vals[8] = {0, 0, 0, 0, 0, 0, 0, 0}; //values of corners and midpoints, ordered as show in diagram
+vec2 pos[8]; //positions of corners and midpoints, ordered as show in diagram
+vec4 cols[8]; //colors of corners and midpoints, ordered as show in diagram
+int currentTriangle = 0; //keep track of how many triangle we have generated
 
-Color lerp(Color c1, Color c2) {
-	Color c = {0, 0, vec2(0, 0), vec4(0, 0, 0, 0)};
-
-	float scale = (minval - c2.value) / (c1.value - c2.value);
-	c.density = c2.density + (c1.density - c2.density) * scale;
-	c.velocity = c2.velocity + (c1.velocity - c2.velocity) * scale;
-	c.rgba = c2.rgba + (c1.rgba - c2.rgba) * scale;
-
-	return c;
+//linear interpolate between corners v1 and v2 and store result in v3
+void lerp(int v1, int v2, int v3) {
+	float scale = (minval - vals[v2]) / (vals[v1] - vals[v2]);
+	pos[v3] = pos[v2] + (pos[v1] - pos[v2]) * scale;
+	cols[v3] = cols[v2] + (cols[v1] - cols[v2]) * scale;
+	vals[v3] = minval;
 }
+
+//sneak the values into the position vector for later use
+void setTriangle(int cid, int v1, int v2, int v3) {
+	//check midpoints have been generated
+	if (v1 > 3 && vals[v1] == 0) lerp(v1 - 4, (v1 + 1) % 4, v1);
+	if (v2 > 3 && vals[v2] == 0) lerp(v2 - 4, (v2 + 1) % 4, v2);
+	if (v3 > 3 && vals[v3] == 0) lerp(v3 - 4, (v3 + 1) % 4, v3);
+	
+	//generate triangle
+	int tid = currentTriangle * 3; //because there are 3 vertices per triangle
+	msVertices[cid + tid] = VertexData(vec4(pos[v1], vals[v1], 0), cols[v1]);
+	msVertices[cid + tid + 1] = VertexData(vec4(pos[v2], vals[v2], 0), cols[v2]);
+	msVertices[cid + tid + 2] = VertexData(vec4(pos[v3], vals[v3], 0), cols[v3]);
+	currentTriangle += 1;
+}
+
+
+//      3      6      2
+//		______________	
+//		|			 |
+//		|			 |
+//	   7|			 | 5
+//		|			 |
+//		|____________|
+//     0      4       1
 
 void main() {
 	uint id = gl_GlobalInvocationID.x;
@@ -73,242 +93,121 @@ void main() {
 	int cy = int(floor(id / cxCells));
 	int cx = int(id - cy * cxCells);
 
-	//get colors from 4 vertices, order: bottom left, bottom right, top right, top left
+	//dont calculate cells off edge of grid
+	if (cy >= cyCells - 1) return;
+	if (cx >= cxCells - 1) return;
+
+	//get index into values and colors arrays
 	int cid = cy * cxCells + cx;
-	Color vCols[4] = {colors[cid],
-					colors[cid + 1],
-					colors[cid + cxCells + 1],
-					colors[cid + cxCells]};
 
-	//get corner positions, same order as above
-	vec2 cpos[4];
-	cpos[0] = vec2(cx * cResolution, cy * cResolution);
-	cpos[1] = vec2((cx + 1) * cResolution, cy * cResolution);
-	cpos[2] = vec2((cx + 1) * cResolution, (cy + 1) * cResolution);
-	cpos[3] = vec2(cx * cResolution, (cy + 1) * cResolution);
+	//get values and colors of corners
+	vals[0] = values[cid];
+	vals[1] = values[cid + 1];
+	vals[2] = values[cid + cxCells + 1];
+	vals[3] = values[cid + cxCells];
+	cols[0] = colors[cid];
+	cols[1] = colors[cid + 1];
+	cols[2] = colors[cid + cxCells + 1];
+	cols[3] = colors[cid + cxCells];
 
-	//get rgb colors
-	
 
 	//get possible case out of the available 15
 	int code = 0;
-	if (vCols[0].value > minval) code += 1;
-	if (vCols[1].value > minval) code += 2;
-	if (vCols[2].value > minval) code += 4;
-	if (vCols[3].value > minval) code += 8;
+	if (vals[0] > minval) code += 1;
+	if (vals[1] > minval) code += 2;
+	if (vals[2] > minval) code += 4;
+	if (vals[3] > minval) code += 8;
 
-	//average value (color at centre of cell) for deciding ambigous cases
-	float avg = (vCols[0].value + vCols[1].value + vCols[2].value + vCols[3].value) / 4.0;
+	//generate positions of corners
+	pos[0] = vec2(cx * cResolution, cy * cResolution);
+	pos[1] = vec2((cx + 1) * cResolution, cy * cResolution);
+	pos[2] = vec2((cx + 1) * cResolution, (cy + 1) * cResolution);
+	pos[3] = vec2(cx * cResolution, (cy + 1) * cResolution);
 
 	//adjust id for indexing into vertex ssbo
-	cid *= 12; //by 12 because 12 possible vertices per cell
-
-	//assume case 0, a lot of these vertices hold for other cases, faster to call clear buffer?
-	for (int i = cid; i < cid + 12; i++) {
-		msVertices[i] = msVertexData(vec4(0,0,0,0), vec4(0,0,0,0));
-	}
-
-	//mid bottom, mid right, mid top, mid left. Apply linear interploation as we go
-	vec2 mid[4];
-	mid[0] = vec2(cpos[1].x + (cpos[0].x - cpos[1].x) * ((minval - vCols[1].value) / (vCols[0].value - vCols[1].value)), cpos[1].y);
-	mid[1] = vec2(cpos[2].x, cpos[2].y + (cpos[1].y - cpos[2].y) * ((minval - vCols[2].value) / (vCols[1].value - vCols[2].value)));
-	mid[2] = vec2(cpos[3].x + (cpos[2].x - cpos[3].x) * ((minval - vCols[3].value) / (vCols[2].value - vCols[3].value)), cpos[3].y);
-	mid[3] = vec2(cpos[0].x, cpos[0].y + (cpos[3].y - cpos[0].y) * ((minval - vCols[0].value) / (vCols[3].value - vCols[0].value)));
-
-	//get middle colours, with their values lerped
-	Color mCols[4];
-	mCols[0] = lerp(vCols[0], vCols[1]);
-	mCols[1] = lerp(vCols[1], vCols[2]);
-	mCols[2] = lerp(vCols[2], vCols[3]);
-	mCols[3] = lerp(vCols[3], vCols[0]);
-
-	vec4 vColor = vec4(0,0.7,0.7,1);
+	cid *= 9; //by 9 because 9 possible vertices per cell
 
 	switch(code) {
 		
 		//basic single corner cases
 		case 1:
-			msVertices[cid] = msVertexData(vec4(cpos[0], 0, 1), vColor);
-			msVertices[cid + 1] = msVertexData(vec4(mid[0], 0, 1), vColor);
-			msVertices[cid + 2] = msVertexData(vec4(mid[3], 0, 1), vColor);
+			setTriangle(cid, 0, 4, 7);
 			break;
 		case 2:
-			msVertices[cid] = msVertexData(vec4(cpos[1], 0, 1), vColor);
-			msVertices[cid + 1] = msVertexData(vec4(mid[1], 0, 1), vColor);
-			msVertices[cid + 2] = msVertexData(vec4(mid[0], 0, 1), vColor);
+			setTriangle(cid, 1, 5, 4);
 			break;
 		case 4:
-			msVertices[cid] = msVertexData(vec4(cpos[2], 0, 1), vColor);
-			msVertices[cid + 1] = msVertexData(vec4(mid[2], 0, 1), vColor);
-			msVertices[cid + 2] = msVertexData(vec4(mid[1], 0, 1), vColor);
+			setTriangle(cid, 2, 6, 5);
 			break;
 		case 8:
-			msVertices[cid] = msVertexData(vec4(cpos[3], 0, 1), vColor);
-			msVertices[cid + 1] = msVertexData(vec4(mid[3], 0, 1), vColor);
-			msVertices[cid + 2] = msVertexData(vec4(mid[2], 0, 1), vColor);
+			setTriangle(cid, 3, 7, 6);
 			break;
 
 		//horizontal line cases
 		case 3:
-			msVertices[cid] = msVertexData(vec4(cpos[0], 0, 1), vColor);
-			msVertices[cid + 1] = msVertexData(vec4(cpos[1], 0, 1), vColor);
-			msVertices[cid + 2] = msVertexData(vec4(mid[3], 0, 1), vColor);
-			
-			msVertices[cid + 3] = msVertexData(vec4(cpos[1], 0, 1), vColor);
-			msVertices[cid + 4] = msVertexData(vec4(mid[1], 0, 1), vColor);
-			msVertices[cid + 5] = msVertexData(vec4(mid[3], 0, 1), vColor);
+			setTriangle(cid, 0, 1, 7);
+			setTriangle(cid, 1, 5, 7);
 			break;
 		case 12:
-			msVertices[cid] = msVertexData(vec4(cpos[2], 0, 1), vColor);
-			msVertices[cid + 1] = msVertexData(vec4(cpos[3], 0, 1), vColor);
-			msVertices[cid + 2] = msVertexData(vec4(mid[1], 0, 1), vColor);
-			
-			msVertices[cid + 3] = msVertexData(vec4(cpos[3], 0, 1), vColor);
-			msVertices[cid + 4] = msVertexData(vec4(mid[3], 0, 1), vColor);
-			msVertices[cid + 5] = msVertexData(vec4(mid[1], 0, 1), vColor);
+			setTriangle(cid, 2, 3, 5);
+			setTriangle(cid, 3, 7, 5);
 			break;
 
 		//vertical line cases
 		case 6:
-			msVertices[cid] = msVertexData(vec4(cpos[1], 0, 1), vColor);
-			msVertices[cid + 1] = msVertexData(vec4(cpos[2], 0, 1), vColor);
-			msVertices[cid + 2] = msVertexData(vec4(mid[0], 0, 1), vColor);
-			
-			msVertices[cid + 3] = msVertexData(vec4(cpos[2], 0, 1), vColor);
-			msVertices[cid + 4] = msVertexData(vec4(mid[2], 0, 1), vColor);
-			msVertices[cid + 5] = msVertexData(vec4(mid[0], 0, 1), vColor);
+			setTriangle(cid, 1, 2, 4);
+			setTriangle(cid, 2, 6, 4);
 			break;
 		case 9:
-			msVertices[cid] = msVertexData(vec4(cpos[0], 0, 1), vColor);
-			msVertices[cid + 1] = msVertexData(vec4(mid[0], 0, 1), vColor);
-			msVertices[cid + 2] = msVertexData(vec4(mid[2], 0, 1), vColor);
-			
-			msVertices[cid + 3] = msVertexData(vec4(cpos[3], 0, 1), vColor);
-			msVertices[cid + 4] = msVertexData(vec4(cpos[0], 0, 1), vColor);
-			msVertices[cid + 5] = msVertexData(vec4(mid[2], 0, 1), vColor);
+			setTriangle(cid, 0, 4, 6);
+			setTriangle(cid, 3, 0, 6);
 			break;
 
 		//3 point cases
 		case 7:
-			msVertices[cid] = msVertexData(vec4(cpos[0], 0, 1), vColor);
-			msVertices[cid + 1] = msVertexData(vec4(mid[2], 0, 1), vColor);
-			msVertices[cid + 2] = msVertexData(vec4(mid[3], 0, 1), vColor);
-			
-			msVertices[cid + 3] = msVertexData(vec4(cpos[0], 0, 1), vColor);
-			msVertices[cid + 4] = msVertexData(vec4(cpos[2], 0, 1), vColor);
-			msVertices[cid + 5] = msVertexData(vec4(mid[2], 0, 1), vColor);
-			
-			msVertices[cid + 6] = msVertexData(vec4(cpos[0], 0, 1), vColor);
-			msVertices[cid + 7] = msVertexData(vec4(cpos[1], 0, 1), vColor);
-			msVertices[cid + 8] = msVertexData(vec4(cpos[2], 0, 1), vColor);
+			setTriangle(cid, 0, 6, 7);
+			setTriangle(cid, 0, 2, 6);
+			setTriangle(cid, 0, 1, 2);
 			break;
 		case 11:
-			msVertices[cid] = msVertexData(vec4(cpos[1], 0, 1), vColor);
-			msVertices[cid + 1] = msVertexData(vec4(mid[1], 0, 1), vColor);
-			msVertices[cid + 2] = msVertexData(vec4(mid[2], 0, 1), vColor);
-			
-			msVertices[cid + 3] = msVertexData(vec4(cpos[1], 0, 1), vColor);
-			msVertices[cid + 4] = msVertexData(vec4(mid[2], 0, 1), vColor);
-			msVertices[cid + 5] = msVertexData(vec4(cpos[3], 0, 1), vColor);
-			
-			msVertices[cid + 6] = msVertexData(vec4(cpos[1], 0, 1), vColor);
-			msVertices[cid + 7] = msVertexData(vec4(cpos[3], 0, 1), vColor);
-			msVertices[cid + 8] = msVertexData(vec4(cpos[0], 0, 1), vColor);
+			setTriangle(cid, 1, 5, 6);
+			setTriangle(cid, 1, 6, 3);
+			setTriangle(cid, 1, 3, 0);
 			break;
 		case 13:
-			msVertices[cid] = msVertexData(vec4(cpos[0], 0, 1), vColor);
-			msVertices[cid + 1] = msVertexData(vec4(mid[0], 0, 1), vColor);
-			msVertices[cid + 2] = msVertexData(vec4(mid[1], 0, 1), vColor);
-			
-			msVertices[cid + 3] = msVertexData(vec4(cpos[0], 0, 1), vColor);
-			msVertices[cid + 4] = msVertexData(vec4(mid[1], 0, 1), vColor);
-			msVertices[cid + 5] = msVertexData(vec4(cpos[2], 0, 1), vColor);
-			
-			msVertices[cid + 6] = msVertexData(vec4(cpos[0], 0, 1), vColor);
-			msVertices[cid + 7] = msVertexData(vec4(cpos[2], 0, 1), vColor);
-			msVertices[cid + 8] = msVertexData(vec4(cpos[3], 0, 1), vColor);
+			setTriangle(cid, 0, 4, 5);
+			setTriangle(cid, 0, 5, 2);
+			setTriangle(cid, 0, 2, 3);
 			break;
 		case 14:
-			msVertices[cid] = msVertexData(vec4(cpos[3], 0, 1), vColor);
-			msVertices[cid + 1] = msVertexData(vec4(mid[3], 0, 1), vColor);
-			msVertices[cid + 2] = msVertexData(vec4(mid[0], 0, 1), vColor);
-			
-			msVertices[cid + 3] = msVertexData(vec4(cpos[3], 0, 1), vColor);
-			msVertices[cid + 4] = msVertexData(vec4(mid[0], 0, 1), vColor);
-			msVertices[cid + 5] = msVertexData(vec4(cpos[1], 0, 1), vColor);
-			
-			msVertices[cid + 6] = msVertexData(vec4(cpos[3], 0, 1), vColor);
-			msVertices[cid + 7] = msVertexData(vec4(cpos[1], 0, 1), vColor);
-			msVertices[cid + 8] = msVertexData(vec4(cpos[2], 0, 1), vColor);
+			setTriangle(cid, 3, 7, 4);
+			setTriangle(cid, 3, 4, 1);
+			setTriangle(cid, 3, 1, 2);
 			break;
 
 		//ambigous cases
 		case 5:
-			if (avg > minval) { //liquid is in centre of cell
-				msVertices[cid] = msVertexData(vec4(cpos[0], 0, 1), vColor);
-				msVertices[cid + 1] = msVertexData(vec4(mid[2], 0, 1), vColor);
-				msVertices[cid + 2] = msVertexData(vec4(mid[3], 0, 1), vColor);
-			
-				msVertices[cid + 3] = msVertexData(vec4(cpos[0], 0, 1), vColor);
-				msVertices[cid + 4] = msVertexData(vec4(cpos[2], 0, 1), vColor);
-				msVertices[cid + 5] = msVertexData(vec4(mid[2], 0, 1), vColor);
-			
-				msVertices[cid + 6] = msVertexData(vec4(cpos[0], 0, 1), vColor);
-				msVertices[cid + 7] = msVertexData(vec4(mid[1], 0, 1), vColor);
-				msVertices[cid + 8] = msVertexData(vec4(cpos[2], 0, 1), vColor);
-
-				msVertices[cid + 9] = msVertexData(vec4(cpos[0], 0, 1), vColor);
-				msVertices[cid + 10] = msVertexData(vec4(mid[0], 0, 1), vColor);
-				msVertices[cid + 11] = msVertexData(vec4(mid[1], 0, 1), vColor);
-			}
-			else {
-				msVertices[cid] = msVertexData(vec4(cpos[0], 0, 1), vColor);
-				msVertices[cid + 1] = msVertexData(vec4(mid[0], 0, 1), vColor);
-				msVertices[cid + 2] = msVertexData(vec4(mid[3], 0, 1), vColor);
-			
-				msVertices[cid + 3] = msVertexData(vec4(cpos[2], 0, 1), vColor);
-				msVertices[cid + 4] = msVertexData(vec4(mid[2], 0, 1), vColor);
-				msVertices[cid + 5] = msVertexData(vec4(mid[1], 0, 1), vColor);
-			}
+			setTriangle(cid, 0, 4, 7);
+			setTriangle(cid, 2, 6, 5);
 			break;
 		case 10:
-			if (avg > minval) { //liquid is in centre of cell
-				msVertices[cid] = msVertexData(vec4(cpos[3], 0, 1), vColor);
-				msVertices[cid + 1] = msVertexData(vec4(mid[3], 0, 1), vColor);
-				msVertices[cid + 2] = msVertexData(vec4(mid[0], 0, 1), vColor);
-			
-				msVertices[cid + 3] = msVertexData(vec4(cpos[3], 0, 1), vColor);
-				msVertices[cid + 4] = msVertexData(vec4(mid[0], 0, 1), vColor);
-				msVertices[cid + 5] = msVertexData(vec4(cpos[1], 0, 1), vColor);
-			
-				msVertices[cid + 6] = msVertexData(vec4(cpos[3], 0, 1), vColor);
-				msVertices[cid + 7] = msVertexData(vec4(cpos[1], 0, 1), vColor);
-				msVertices[cid + 8] = msVertexData(vec4(mid[1], 0, 1), vColor);
-
-				msVertices[cid + 9] = msVertexData(vec4(cpos[3], 0, 1), vColor);
-				msVertices[cid + 10] = msVertexData(vec4(mid[1], 0, 1), vColor);
-				msVertices[cid + 11] = msVertexData(vec4(mid[2], 0, 1), vColor);
-			}
-			else {
-				msVertices[cid] = msVertexData(vec4(cpos[3], 0, 1), vColor);
-				msVertices[cid + 1] = msVertexData(vec4(mid[3], 0, 1), vColor);
-				msVertices[cid + 2] = msVertexData(vec4(mid[2], 0, 1), vColor);
-			
-				msVertices[cid + 3] = msVertexData(vec4(cpos[1], 0, 1), vColor);
-				msVertices[cid + 4] = msVertexData(vec4(mid[1], 0, 1), vColor);
-				msVertices[cid + 5] = msVertexData(vec4(mid[0], 0, 1), vColor);
-			}
+			setTriangle(cid, 3, 7, 6);
+			setTriangle(cid, 1, 5, 4);
 			break;
 
 		//full case
 		case 15:
-			msVertices[cid] = msVertexData(vec4(cpos[0], 0, 1), vColor);
-			msVertices[cid + 1] = msVertexData(vec4(cpos[1], 0, 1), vColor);
-			msVertices[cid + 2] = msVertexData(vec4(cpos[3], 0, 1), vColor);
-			
-			msVertices[cid + 3] = msVertexData(vec4(cpos[1], 0, 1), vColor);
-			msVertices[cid + 4] = msVertexData(vec4(cpos[2], 0, 1), vColor);
-			msVertices[cid + 5] = msVertexData(vec4(cpos[3], 0, 1), vColor);
+			setTriangle(cid, 0, 1, 3);
+			setTriangle(cid, 1, 2, 3);
 			break;
+	}
+
+	//fill in remaining triangles
+	while (currentTriangle < 3) {
+		int tid = currentTriangle * 3;
+		msVertices[cid + tid] = VertexData(vec4(0, 0, 0, 0), vec4(0, 0, 0, 0));
+		msVertices[cid + tid + 1] = VertexData(vec4(0, 0, 0, 0), vec4(0, 0, 0, 0));
+		msVertices[cid + tid + 2] = VertexData(vec4(0, 0, 0, 0), vec4(0, 0, 0, 0));
+		currentTriangle += 1;
 	}
 }

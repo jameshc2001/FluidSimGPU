@@ -62,8 +62,8 @@ namespace constants {
 	inline constexpr float C_RES_HALF = COLOR_RESOLUTION / 2.0f;
 	inline constexpr float C_RADIUS = KERNEL_RADIUS / 1.0f; //radius for which we check particles when calculating color
 	inline constexpr float C_RADIUS_2 = C_RADIUS * C_RADIUS;
-	inline constexpr int C_X_CELLS = (int)(constants::SCREEN_WIDTH / COLOR_RESOLUTION) + 1;
-	inline constexpr int C_Y_CELLS = (int)(constants::SCREEN_HEIGHT / COLOR_RESOLUTION) + 1;
+	inline constexpr int C_X_CELLS = (int)(constants::SCREEN_WIDTH / COLOR_RESOLUTION) + 2; //+1 for corners, +1 for screen misalignment
+	inline constexpr int C_Y_CELLS = (int)(constants::SCREEN_HEIGHT / COLOR_RESOLUTION) + 2;
 	inline constexpr int C_NUM_CELLS = C_X_CELLS * C_Y_CELLS;
 
 	//dimensions of line grid

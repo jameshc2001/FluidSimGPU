@@ -24,16 +24,20 @@ using namespace constants;
 GLFWwindow* window;
 
 Shader lineShader;
-Shader particlesShader;
 
 ParticleSystem particleSystem;
 GUI gui;
+
+float frametime = 0;
+float accumulator = 0;
 
 bool dKeyDown = false;
 bool fKeyDown = false;
 bool rKeyDown = false;
 bool iKeyDown = false;
 bool oKeyDown = false;
+bool uKeyDown = false;
+bool pKeyDown = false;
 
 void framebufferSizeCallback(GLFWwindow* window, int width, int height) {
 	glViewport(0, 0, width, height);
@@ -94,9 +98,6 @@ bool initialise() {
 	lineShader.load("shaders/lineVertex.vert", "shaders/lineFragment.frag"); //NEED TO SET PROJECTION
 	lineShader.use(); //very important
 	glUniformMatrix4fv(glGetUniformLocation(lineShader.id, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-	particlesShader.load("shaders/particlesVertex.vert", "shaders/particlesFragment.frag");
-	particlesShader.use();
-	glUniformMatrix4fv(glGetUniformLocation(particlesShader.id, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 
 	//initialisation successful
 	return true;
@@ -126,6 +127,22 @@ void handleInput() {
 		particleSystem.drawMs = !particleSystem.drawMs;
 		oKeyDown = true;
 	}
+	if (glfwGetKey(window, GLFW_KEY_U) == GLFW_PRESS && !uKeyDown) {
+		particleSystem.calcColor = !particleSystem.calcColor;
+		uKeyDown = true;
+	}
+	if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS && !pKeyDown) {
+		particleSystem.performanceMode = !particleSystem.performanceMode;
+		if (particleSystem.performanceMode) {
+			particleSystem.wait = false;
+			frametime = 1.0f / 30.0f;
+		}
+		else {
+			frametime = 0.0f;
+		}
+		accumulator = 0.0f;
+		pKeyDown = true;
+	}
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_RELEASE) {
 		dKeyDown = false;
 	}
@@ -140,6 +157,12 @@ void handleInput() {
 	}
 	if (glfwGetKey(window, GLFW_KEY_O) == GLFW_RELEASE) {
 		oKeyDown = false;
+	}
+	if (glfwGetKey(window, GLFW_KEY_U) == GLFW_RELEASE) {
+		uKeyDown = false;
+	}
+	if (glfwGetKey(window, GLFW_KEY_P) == GLFW_RELEASE) {
+		pKeyDown = false;
 	}
 }
 
@@ -158,40 +181,36 @@ int main() {
 
 	//main loop
 	while (!glfwWindowShouldClose(window)) {
-		//update gui
-		gui.update();
 		
+		//get time since last frame
 		float currentTime = glfwGetTime();
 		deltaTime = currentTime - prevTime;
 		prevTime = currentTime;
+		accumulator += deltaTime;
 
-		float start = glfwGetTime();
 		//input handling here
 		handleInput();
 
 		//sim updating here
 		particleSystem.update(deltaTime);
 
-		//rendering here
-		glClear(GL_COLOR_BUFFER_BIT);
-		gui.render();
-		particleSystem.render();
+		//std::cout << accumulator << "   " << frametime << std::endl;
+		if (accumulator >= frametime) {
+			//update gui
+			gui.update();
 
-		//display new frame and poll events
-		glfwSwapBuffers(window);
-		glfwPollEvents();
+			//rendering here
+			glClear(GL_COLOR_BUFFER_BIT);
+			gui.render();
+			particleSystem.render();
 
-		float end = glfwGetTime();
-		sampleSum += end - start;
-		currentSample++;
-		if (currentSample == TIME_SAMPLES) {
-			float frameTime = sampleSum / (float)constants::TIME_SAMPLES;
-			frameTime *= 1000;
-			//std::cout << frameTime << std::endl;
-			//std::cout << "\r" << std::setw(6) << std::setfill('0') << frameTime << std::flush;
-			sampleSum = 0;
-			currentSample = 0;
+			//display new frame
+			glfwSwapBuffers(window);
+			accumulator -= frametime;
 		}
+
+		//poll new events
+		glfwPollEvents();
 	}
 
 	glfwTerminate();

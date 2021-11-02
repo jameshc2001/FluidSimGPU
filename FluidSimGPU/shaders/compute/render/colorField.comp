@@ -21,13 +21,6 @@ struct Properties { //particle properties
 	vec4 color;
 };
 
-struct Color {
-	float value;
-	float density;
-	vec2 velocity;
-	vec4 rgba;
-};
-
 layout(std430, binding = 0) buffer ParticleBuffer {
 	Particle particles[];
 };
@@ -42,7 +35,8 @@ layout(std430, binding = 2) buffer PropertiesBuffer {
 };
 
 layout(std430, binding = 4) buffer ColorBuffer {
-	Color colors[];
+	float values[103576];
+	vec4 colors[103576];
 };
 
 layout(std140, binding = 0) uniform SimulationValues {
@@ -81,16 +75,20 @@ void main() {
 
 	//color grid coordinates
 	int cy = int(floor(id / cxCells));
-	int cx = int(id - cy * cxCells);
+	int cx = int(id) - cy * cxCells;
 
+	//get position of this cell corner
 	vec2 position = vec2(cx * cResolution, cy * cResolution);
 
+	//get coordinates for particle grid
 	int px = int(floor(position.x / kernelRadius));
 	int py = int(floor(position.y / kernelRadius));
 
-	Color color = {0, 0, vec2(0, 0), vec4(0, 0, 0, 0)};
+	vec4 rgba = vec4(0, 0, 0, 0);
+	float value = 0;
 	int neighbours = 0;
 
+	//search for neighbours
 	for (int y = py - 1; y <= py + 1; y++) {
 		for (int x = px - 1; x <= px + 1; x++) {
 			if (y < 0 || x < 0 || y >= yCells || x >= xCells) continue; //out of bounds
@@ -103,40 +101,20 @@ void main() {
 				float dist2 = dot(difference, difference);
 
 				if (dist2 < cRadius2) {
-					//float oMass = properties[o.properties].mass;
-
-					//ok so i think we should really be using densities here but we will have to see
-					//i think using the densites kind of normalises the color values, will be a lot better
-					//for the planned linear interpolation
-
-					//density stored in lambda for optimisation purposes
-//					float polyTemp = kr2 - dist2;
-//					color += (oMass * poly6 * polyTemp * polyTemp * polyTemp) / o.lamda;
-
-					color.value += (particleRadius * particleRadius) / dist2;
-					color.density += o.lamda;
-					color.velocity += o.velocity;
-					color.rgba += properties[o.properties].color;
+					value += (particleRadius * particleRadius) / dist2; //metaball calculation
+					rgba += properties[o.properties].color;
 					neighbours++;
-
 				}
 			}
 		}
 	}
-	color.density /= neighbours;
-	color.velocity /= neighbours;
-	color.rgba /= neighbours; //take average of colours
+	if (neighbours == 0) {
+		values[id] = 0;
+		colors[id] = vec4(0, 0, 0, 0);
+		return;
+	}
 
-	colors[id] = color;
-
-//	if (alternate == 1) {
-//		colors[id] = color;
-//	}
-//	else {
-//		colors[id + cNumCells] = color;
-//	}
-//
-	//colors[id] = color;
-//	if (color > 0) colors[id] = 1;
-//	else colors[id] = 0;
+	//take averages, maybe we can do something more clever here
+	values[id] = value;
+	colors[id] = rgba / neighbours;
 }

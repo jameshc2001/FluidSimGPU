@@ -100,10 +100,8 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="shaders\particlesVertex.vert" />
     <None Include="shaders\lineFragment.frag" />
     <None Include="shaders\lineVertex.vert" />
-    <None Include="shaders\particlesFragment.frag" />
     <None Include="shaders\compute\update\predict.comp" />
     <None Include="shaders\compute\update\calcLamdas.comp" />
     <None Include="shaders\compute\update\improve.comp" />
@@ -118,5 +116,7 @@
     <None Include="shaders\compute\render\msGenVertices.comp">
       <Filter>Source Files</Filter>
     </None>
+    <None Include="shaders\ms.vert" />
+    <None Include="shaders\ms.frag" />
   </ItemGroup>
 </Project>

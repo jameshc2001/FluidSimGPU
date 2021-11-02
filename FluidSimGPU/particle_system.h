@@ -23,6 +23,15 @@ struct VertexData {
 	glm::vec4 color;
 };
 
+struct colorData {
+	glm::vec2 position;
+	float value;
+	float density;
+	glm::vec2 velocity;
+	glm::vec2 rg;
+	glm::vec2 ba;
+};
+
 class ParticleSystem {
 private:
 	Shader predictShader;
@@ -76,11 +85,15 @@ private:
 
 	//particle functions
 	void updateGridGPU();
+	void generateVertexData();
 	void updateParticles();
 
 public:
 	bool drawParticles = false;
 	bool drawMs = true;
+	bool calcColor = true;
+	bool performanceMode = false;
+	int wait = false;
 
 	ParticleSystem();
 

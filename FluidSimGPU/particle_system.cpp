@@ -17,6 +17,11 @@ void ParticleSystem::initialise() {
 	particlePointShader.use();
 	glUniformMatrix4fv(glGetUniformLocation(particlePointShader.id, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 
+	//similarly for ms render shader
+	msShader.load("shaders/ms.vert", "shaders/ms.frag");
+	msShader.use();
+	glUniformMatrix4fv(glGetUniformLocation(msShader.id, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+
 	//setup compute shaders
 	//simulation shaders
 	predictShader.loadCompute("shaders/compute/update/predict.comp");
@@ -127,11 +132,11 @@ void ParticleSystem::initialise() {
 
 	//set size of color field ssbo
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, colorSSBO);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(float)* C_NUM_CELLS * 8, NULL, GL_DYNAMIC_DRAW);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(float) * C_NUM_CELLS + sizeof(glm::vec4) * C_NUM_CELLS, NULL, GL_DYNAMIC_DRAW);
 
 	//set size of msSSBO
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, msSSBO);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(VertexData)* C_NUM_CELLS * 12, NULL, GL_DYNAMIC_DRAW);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(VertexData)* C_NUM_CELLS * 9, NULL, GL_DYNAMIC_DRAW);
 }
 
 void ParticleSystem::addParticles(std::vector<Particle>* particlesToAdd) {
@@ -238,6 +243,26 @@ void ParticleSystem::printColorData() {
 	printColorField(colorSSBO);
 }
 
+void ParticleSystem::generateVertexData() {
+	if (!performanceMode || !wait) {
+		if (drawParticles) {
+			genVerticesShader.use(); //simply creates vertex for each particle
+			glDispatchCompute(ceil((float)particles / 1024.0f), 1, 1);
+		}
+
+		if (calcColor) {
+			colorShader.use(); //generates colour values
+			glDispatchCompute(ceil((float)C_NUM_CELLS / 1024.0f), 1, 1);
+		}
+
+		if (drawMs) {
+			genMSVerticesShader.use(); //convertes colour grid into vertices for rendering
+			glDispatchCompute(ceil((float)C_NUM_CELLS / 1024.0f), 1, 1);
+		}
+	}
+	wait = !wait;
+}
+
 void ParticleSystem::updateParticles() {
 	if (particles == 0) return;
 
@@ -246,19 +271,7 @@ void ParticleSystem::updateParticles() {
 
 	//render before updating, this may seem odd but rendering appears better when using
 	//the most up to date grid information so it is best to fall a frame behind
-
-	if (drawMs) {
-		colorShader.use(); //generates colour values
-		glDispatchCompute(ceil((float)C_NUM_CELLS / 1024.0f), 1, 1);
-
-		genMSVerticesShader.use(); //convertes colour grid into vertices for rendering
-		glDispatchCompute(ceil((float)C_NUM_CELLS / 1024.0f), 1, 1);
-	}
-
-	if (drawParticles) {
-		genVerticesShader.use(); //simply creates vertex for each particle
-		glDispatchCompute(ceil((float)particles / 1024.0f), 1, 1);
-	}
+	generateVertexData();
 
 
 	//reset final iteration, this is used for knowing when to save densities for color generating
@@ -303,23 +316,24 @@ void ParticleSystem::update(float deltaTime) {
 		updateParticles();
 		accumulator -= UPDATE_INTERVAL;
 	}
+	while (accumulator >= UPDATE_INTERVAL) accumulator -= UPDATE_INTERVAL;
 }
 
 void ParticleSystem::render() {
 	if (particles == 0) return;
-
-	if (drawMs) {
-		glBindVertexArray(msVAO);
-		glBindBuffer(GL_ARRAY_BUFFER, msSSBO);
-		particlePointShader.use(); //need to make specific shader for ms
-		glDrawArrays(GL_TRIANGLES, 0, C_NUM_CELLS * 12);
-	}
 
 	if (drawParticles) {
 		glBindVertexArray(pointVAO);
 		glBindBuffer(GL_ARRAY_BUFFER, pointSSBO);
 		particlePointShader.use();
 		glDrawArrays(GL_POINTS, 0, particles);
+	}
+
+	if (drawMs) {
+		glBindVertexArray(msVAO);
+		glBindBuffer(GL_ARRAY_BUFFER, msSSBO);
+		msShader.use();
+		glDrawArrays(GL_TRIANGLES, 0, C_NUM_CELLS * 9);
 	}
 
 	glBindVertexArray(0);
