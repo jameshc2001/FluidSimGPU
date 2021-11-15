@@ -39,6 +39,15 @@ void ParticleSystem::initialise() {
 	prefixIterationShader.loadCompute("shaders/compute/sort/prefixIteration.comp");
 	sortShader.loadCompute("shaders/compute/sort/sort.comp");
 
+	//line rendering shader
+	lineShader.load("shaders/lineVertex.vert", "shaders/lineFragment.frag");
+	lineShader.use();
+	glUniformMatrix4fv(glGetUniformLocation(lineShader.id, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+
+	applyShader.use();
+	applyShader.setFloat("lineGridRes", LINE_GRID_RESOLUTION);
+	applyShader.setInt("lineXCells", L_X_CELLS);
+
 
 	glBindVertexArray(0); //probably useless
 
@@ -58,44 +67,48 @@ void ParticleSystem::initialise() {
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, colorSSBO); //maybe unnecessary
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, colorSSBO);
 
+	glGenBuffers(1, &lineSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, lineSSBO); //maybe unnecessary
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, lineSSBO);
+
 
 	//setup ssbo for vertex render
 	glGenVertexArrays(1, &pointVAO);
 	glGenBuffers(1, &pointSSBO);
-
 	glBindVertexArray(pointVAO);
-
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, pointSSBO); //maybe unnecessary
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, pointSSBO);
-
 	glBindBuffer(GL_ARRAY_BUFFER, pointSSBO);
-
 	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0); //vertex position
 	glEnableVertexAttribArray(0);
-
 	glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(sizeof(float) * 4)); //vertex color
 	glEnableVertexAttribArray(1);
-
 	glBindVertexArray(0);
 
 
 	//setup ssbo for ms render
 	glGenVertexArrays(1, &msVAO);
 	glGenBuffers(1, &msSSBO);
-
 	glBindVertexArray(msVAO);
-
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, msSSBO);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, msSSBO);
-
 	glBindBuffer(GL_ARRAY_BUFFER, msSSBO);
-
 	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0); //vertex position
 	glEnableVertexAttribArray(0);
-
 	glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(sizeof(float) * 4)); //vertex color
 	glEnableVertexAttribArray(1);
+	glBindVertexArray(0);
 
+	
+	//setup buffers for line rendering, unlike particles this is all done cpu side
+	glGenVertexArrays(1, &lineVAO);
+	glGenBuffers(1, &lineVBO);
+	glBindVertexArray(lineVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, lineVBO);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0); //vertex position as vec2
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(sizeof(float) * 2)); //color as vec3
+	glEnableVertexAttribArray(1);
 	glBindVertexArray(0);
 
 
@@ -137,6 +150,10 @@ void ParticleSystem::initialise() {
 	//set size of msSSBO
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, msSSBO);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(VertexData)* C_NUM_CELLS * 9, NULL, GL_DYNAMIC_DRAW);
+
+	//set size of lineSSBO
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, lineSSBO);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Line) * MAX_LINES + sizeof(int) * L_NUM_CELLS + sizeof(int) * 100000, NULL, GL_STATIC_DRAW); //dont know how big so make it super big
 }
 
 void ParticleSystem::addParticles(std::vector<Particle>* particlesToAdd) {
@@ -166,28 +183,94 @@ void ParticleSystem::resetParticles() {
 	std::cout << "\n" << particles << "\n" << std::endl;
 }
 
-//void printGridBuffer(unsigned int ssbo) {
-//	std::array<int, P_NUM_CELLS * 4> data;
-//	glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
-//	glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(int) * 4 * P_NUM_CELLS, &data[0]);
-//
-//	std::cout << std::endl;
-//	std::cout << "GPU GRID BUFFER DATA START" << std::endl;
-//
-//	for (int i = 0; i < P_NUM_CELLS * 4; i++) {
-//		switch (i) {
-//		case 0: std::cout << "SECTION 1" << std::endl; break;
-//		case P_NUM_CELLS: std::cout << std::endl << "SECTION 2" << std::endl; break;
-//		case P_NUM_CELLS * 2: std::cout << std::endl << "SECTION 3" << std::endl; break;
-//		case P_NUM_CELLS * 3: std::cout << std::endl << "SECTION 4" << std::endl; break;
-//		}
-//		std::cout << data[i] << ", ";
-//	}
-//	std::cout << std::endl;
-//
-//	std::cout << "GPU GRID BUFFER DATA END" << std::endl;
-//	std::cout << std::endl;
-//}
+void ParticleSystem::addLine(glm::vec2 v1, glm::vec2 v2) {
+	lines[numLines] = Line(v1, v2);
+	int l = numLines;
+
+	//now do bresenhams line draw algorithm to determine which cells could have collisions with the line
+	//first convert to grid coordinates
+	int x0 = floor(v1.x / LINE_GRID_RESOLUTION);
+	int y0 = floor(v1.y / LINE_GRID_RESOLUTION);
+	int x1 = floor(v2.x / LINE_GRID_RESOLUTION);
+	int y1 = floor(v2.y / LINE_GRID_RESOLUTION);
+
+	//use Alois Zingl's version of bresenham line drawing algorithm (from easy filter REFERENCE PROPERLY)
+	int dx = abs(x1 - x0);
+	int dy = -abs(y1 - y0);
+	int sx = x0 < x1 ? 1 : -1;
+	int sy = y0 < y1 ? 1 : -1;
+	int err = dx + dy;
+	int e2;
+
+	while (true) {
+		//first add this line to the current cell and surrounding cells
+		for (int i = x0 - 1; i <= x0 + 1; i++) {
+			for (int j = y0 - 1; j <= y0 + 1; j++) {
+				if (i < 0 || j < 0 || i >= L_X_CELLS || j >= L_Y_CELLS) continue;
+				if (lineGrid[i][j].size() > 0) {
+					if (lineGrid[i][j].back() == l) continue; //already added line to this cell
+				}
+				lineGrid[i][j].push_back(l);
+			}
+		}
+
+		//progress the line drawing algorithm
+		e2 = 2 * err;
+		if (e2 >= dy) {
+			if (x0 == x1) break;
+			err += dy;
+			x0 += sx;
+		}
+		if (e2 <= dx) {
+			if (y0 == y1) break;
+			err += dx;
+			y0 += sy;
+		}
+	}
+
+	//we are done, increment line array pointer
+	numLines++;
+
+	//update this all on the gpu side
+	updateLinesGPU(); //maybe only call this if numLines changes
+	//makes more sense for when we implement the delete function
+}
+
+void ParticleSystem::updateLinesGPU() {
+	//first generate vertex data
+	std::vector<LineVertexData> linevd;
+	glm::vec3 color = glm::vec3(0, 0, 0);
+	for (int i = 0; i < numLines; i++) {
+		Line* line = &lines[i];
+		LineVertexData vd = { line->a, color };
+		linevd.push_back(vd);
+		vd = { line->b, color };
+		linevd.push_back(vd);
+	}
+	glBindVertexArray(lineVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, lineVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(LineVertexData) * numLines * 2, &linevd[0], GL_STATIC_DRAW);
+	glBindVertexArray(0);
+
+	//genereate crazy grid stuff
+	std::vector<int> lineIndexes; //we can't know the length of this
+	std::vector<int> lineCellStart; //length of this is always the same
+	for (int y = 0; y < L_Y_CELLS; y++) { //loop through y before x, super important!
+		for (int x = 0; x < L_X_CELLS; x++) {
+			int cellID = y * L_X_CELLS + x;
+			lineCellStart.push_back(lineIndexes.size()); //current cell starts here
+			for (int line : lineGrid[x][y]) {
+				lineIndexes.push_back(line);
+			}
+		}
+	}
+
+	//send lines, lineIndexes and lineCellStart to GPU
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, lineSSBO);
+	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(Line) * MAX_LINES, &lines[0]); //send lines
+	glBufferSubData(GL_SHADER_STORAGE_BUFFER, sizeof(Line) * MAX_LINES, sizeof(int) * lineCellStart.size(), &lineCellStart[0]); //send cell start
+	glBufferSubData(GL_SHADER_STORAGE_BUFFER, sizeof(Line) * MAX_LINES + sizeof(int) * lineCellStart.size(), sizeof(int) * lineIndexes.size(), &lineIndexes[0]); //send indexes
+}
 
 void ParticleSystem::updateGridGPU() {
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, gridCellSSBO);
@@ -222,27 +305,6 @@ void ParticleSystem::updateGridGPU() {
 	glDispatchCompute(ceil((float)particles / 1024.0f), 1, 1);
 }
 
-void ParticleSystem::printColorField(unsigned int ssbo) {
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
-	glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(float) * C_NUM_CELLS, &data[0]);
-
-	std::cout << std::endl;
-	std::cout << "GPU COLOR FIELD BUFFER DATA START" << std::endl;
-
-	for (int i = C_NUM_CELLS - 1; i >= 0; i--) {
-		if (i % C_X_CELLS == 0) std::cout << std::endl << std::endl;
-		std::cout << data[i] << " | ";
-	}
-	std::cout << std::endl;
-
-	std::cout << "GPU COLOR FIELD BUFFER DATA END" << std::endl;
-	std::cout << std::endl;
-}
-
-void ParticleSystem::printColorData() {
-	printColorField(colorSSBO);
-}
-
 void ParticleSystem::generateVertexData() {
 	if (!performanceMode || !wait) {
 		if (drawParticles) {
@@ -272,7 +334,6 @@ void ParticleSystem::updateParticles() {
 	//render before updating, this may seem odd but rendering appears better when using
 	//the most up to date grid information so it is best to fall a frame behind
 	generateVertexData();
-
 
 	//reset final iteration, this is used for knowing when to save densities for color generating
 	glBindBuffer(GL_UNIFORM_BUFFER, simUBO);
@@ -320,21 +381,27 @@ void ParticleSystem::update(float deltaTime) {
 }
 
 void ParticleSystem::render() {
-	if (particles == 0) return;
+	if (particles != 0) {
+		if (drawParticles) {
+			glBindVertexArray(pointVAO);
+			glBindBuffer(GL_ARRAY_BUFFER, pointSSBO);
+			particlePointShader.use();
+			glDrawArrays(GL_POINTS, 0, particles);
+		}
 
-	if (drawParticles) {
-		glBindVertexArray(pointVAO);
-		glBindBuffer(GL_ARRAY_BUFFER, pointSSBO);
-		particlePointShader.use();
-		glDrawArrays(GL_POINTS, 0, particles);
+		if (drawMs) {
+			glBindVertexArray(msVAO);
+			glBindBuffer(GL_ARRAY_BUFFER, msSSBO);
+			msShader.use();
+			glDrawArrays(GL_TRIANGLES, 0, C_NUM_CELLS * 9);
+		}
 	}
 
-	if (drawMs) {
-		glBindVertexArray(msVAO);
-		glBindBuffer(GL_ARRAY_BUFFER, msSSBO);
-		msShader.use();
-		glDrawArrays(GL_TRIANGLES, 0, C_NUM_CELLS * 9);
-	}
+	//draw geometry on top of everything else
+	glBindVertexArray(lineVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, lineVBO);
+	lineShader.use();
+	glDrawArrays(GL_LINES, 0, numLines * 2); //2 vertices per line
 
 	glBindVertexArray(0);
 }

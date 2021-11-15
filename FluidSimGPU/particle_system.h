@@ -15,8 +15,14 @@
 #include "particle.h"
 #include "globals.h"
 #include "shader.h"
+#include "line.h"
 
 using namespace constants;
+
+struct LineVertexData {
+	glm::vec2 position;
+	glm::vec3 color;
+};
 
 struct VertexData {
 	glm::vec4 position;
@@ -45,13 +51,17 @@ private:
 
 	unsigned int particleSSBO;
 	unsigned int gridCellSSBO;
+	unsigned int lineSSBO;
 	unsigned int propertiesSSBO;
 	unsigned int colorSSBO;
 	unsigned int msSSBO;
 
+	Shader lineShader;
 	Shader particlePointShader;
 	Shader msShader;
 
+	unsigned int lineVAO;
+	unsigned int lineVBO;
 	unsigned int msVAO;
 	unsigned int pointVAO;
 	unsigned int pointSSBO;
@@ -69,24 +79,20 @@ private:
 	Shader prefixIterationShader;
 	Shader sortShader;
 
-	std::array<float, constants::MAX_PARTICLES * 6 * 5> vertexData;
-
-	int prevNumParticles = 0;
-	bool particlesChanged = false; //if true we need to completely reallocate vertex buffer
-	bool updateVertexData = false; //if true we need to update the vertex buffers data
-
 	int particles = 0;
-	std::array<ParticleProperties, constants::MAX_PARTICLE_TYPES> particleProperties;
-
+	int numLines = 0;
 	float accumulator = 0;
-
-	void printColorField(unsigned int ssbo);
-	std::array<float, C_NUM_CELLS> data; // for debugging
+	std::array<ParticleProperties, constants::MAX_PARTICLE_TYPES> particleProperties;
+	std::array<Line, constants::MAX_LINES> lines;
+	std::vector<int> lineGrid[constants::L_X_CELLS][constants::L_Y_CELLS];
 
 	//particle functions
 	void updateGridGPU();
 	void generateVertexData();
 	void updateParticles();
+
+	//line functions
+	void updateLinesGPU();
 
 public:
 	bool drawParticles = false;
@@ -100,7 +106,8 @@ public:
 	void addParticles(std::vector<Particle>* particlesToAdd);
 	void spawnDam(int n, int properties, float x, float y);
 	void resetParticles();
-	void printColorData();
+
+	void addLine(glm::vec2 v1, glm::vec2 v2);
 
 	void initialise();
 	void update(float deltaTime); //decide vertex stuff

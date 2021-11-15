@@ -21,6 +21,14 @@ struct Properties { //particle properties
 	vec4 color;
 };
 
+struct Line {
+	vec2 a;
+	vec2 b;
+	vec2 ab;
+	float lengthAb;
+	int id;
+};
+
 layout(std430, binding = 0) buffer ParticleBuffer {
 	Particle particles[];
 };
@@ -32,6 +40,12 @@ layout(std430, binding = 1) buffer GridCells {
 layout(std430, binding = 2) buffer PropertiesBuffer {
 	Properties properties[6];
 	float densities[];
+};
+
+layout(std430, binding = 6) buffer LineBuffer {
+	Line lines[512];
+	int lineCellStart[58102];
+	int lineIndexes[]; //unkwown length so must be at end of buffer
 };
 
 layout(std140, binding = 0) uniform SimulationValues {
@@ -64,13 +78,16 @@ layout(std140, binding = 0) uniform SimulationValues {
 	float cRadius2;
 };
 
+uniform float lineGridRes;
+uniform int lineXCells;
+
 void main() {
 	uint id = gl_GlobalInvocationID.x;
 	if (id >= numParticles) return;
 
 	Particle p = particles[id];
 
-	//p.velocity = (p.predictedPosition - p.position) / deltaTime;
+	//p.velocity = (p.predictedPosition - p.position) / deltaTime; pretty sure this is useless
 
 //	//apply CFL
 //	p.velocity = p.predictedPosition - p.position; //the translation we play to apply to the particle
@@ -114,6 +131,55 @@ void main() {
 	p.velocity += viscosity * properties[p.properties].viscosity;
 	p.position = p.predictedPosition;
 
+	//line collisions solving
+	int lx = int(floor(p.position.x / lineGridRes));
+	int ly = int(floor(p.position.y / lineGridRes));
+	int lineGridCell = ly * lineXCells + lx;
+
+	//should i be checking the surrounding 8 cells as well? no, when generating grid we take care of that
+	for (int i = lineCellStart[lineGridCell]; i < lineCellStart[lineGridCell + 1]; i++) { //loop through all lines in this cell
+		Line l = lines[lineIndexes[i]];
+
+		vec2 c = p.position;
+		vec2 ac = c - l.a; //c is the centre of the circle(particle)
+
+		//project ac onto ab to get ad
+		vec2 ad = (dot(ac, l.ab) / dot(l.ab, l.ab)) * l.ab;
+
+		//check that d lies between a and b
+		//without this check the collision would be between particle and infinite line
+		vec2 d = l.a + ad;
+		float dotProduct = dot(l.ab, ad);
+		if (dotProduct < 0 || dotProduct > l.lengthAb * l.lengthAb) continue;
+
+		//check for collision
+		vec2 dc = c - d;
+		float dcLength2 = dot(dc, dc);
+		if (dcLength2 < particleRadius * particleRadius) { //collision
+			//resolve collision
+			vec2 normal = normalize(dc);
+			float dcLength = sqrt(dcLength2);
+			float amountToAdd = particleRadius - dcLength;
+			p.position += normal * amountToAdd;
+
+			//reflect velocity across normal
+			vec2 v = p.velocity - 2 * dot(p.velocity, normal) * normal;
+
+			//split into components along normal and ab
+			float normalComponent = dot(v, normal);
+			float lineComponent = dot(v, l.ab) / l.lengthAb;
+
+			//dampen normal component
+			normalComponent *= 0.5;
+
+			//could optionally apply friction to the line component
+
+			//reconstruct dampened velocity and assign
+			v = (normalComponent * normal) + (lineComponent * l.ab / l.lengthAb);
+			p.velocity = v;
+		}
+	}
+
 	//boundary solving
 	if (p.position.x - particleRadius < 0.0) {
 		p.velocity.x *= boundDamping;
@@ -137,7 +203,4 @@ void main() {
 	}
 
 	particles[id] = p;
-
-	//for rendering later, move to its own shader?
-	//vertices[id] = VertexData(vec4(p.position, 0.0, 1.0), properties[p.properties].color);
 }

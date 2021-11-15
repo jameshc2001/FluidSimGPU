@@ -38,6 +38,7 @@ bool iKeyDown = false;
 bool oKeyDown = false;
 bool uKeyDown = false;
 bool pKeyDown = false;
+bool wKeyDown = false;
 
 void framebufferSizeCallback(GLFWwindow* window, int width, int height) {
 	glViewport(0, 0, width, height);
@@ -99,6 +100,9 @@ bool initialise() {
 	lineShader.use(); //very important
 	glUniformMatrix4fv(glGetUniformLocation(lineShader.id, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 
+	//set line width to reasonable size
+	glLineWidth(4.0f);
+
 	//initialisation successful
 	return true;
 }
@@ -116,8 +120,10 @@ void handleInput() {
 		particleSystem.resetParticles();
 		rKeyDown = true;
 	}
-	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-		particleSystem.printColorData();
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS && !wKeyDown) {
+		particleSystem.addLine(glm::vec2(200, 500), glm::vec2(600, 100));
+		particleSystem.addLine(glm::vec2(600, 100), glm::vec2(1000, 300));
+		wKeyDown = true;
 	}
 	if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS && !iKeyDown) {
 		particleSystem.drawParticles = !particleSystem.drawParticles;
@@ -145,6 +151,9 @@ void handleInput() {
 	}
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_RELEASE) {
 		dKeyDown = false;
+	}
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_RELEASE) {
+		wKeyDown = false;
 	}
 	if (glfwGetKey(window, GLFW_KEY_F) == GLFW_RELEASE) {
 		fKeyDown = false;

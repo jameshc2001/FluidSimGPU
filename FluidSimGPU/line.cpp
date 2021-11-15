@@ -1,50 +1,11 @@
 #include "line.h"
 
-Line::Line(glm::vec2 v1, glm::vec2 v2, Shader* _shader) {
-	if (v1.x < v2.x || v1.y < v2.y) { //order vertices correctly, may be unncessary
-		a = v1;
-		b = v2;
-	}
-	else {
-		a = v2;
-		b = v1;
-	}
-	if (abs(a.x - b.x) == abs(a.y - b.y)) angleOf45 = true;
-	else angleOf45 = false;
+Line::Line(glm::vec2 v1, glm::vec2 v2) {
+	a = v1;
+	b = v2;
+	id = 0;
 	ab = b - a;
-	length = glm::length(ab); //(ab).length();
-
-	//generate vertices to create thick line
-	glm::vec2 perp(ab.y, -ab.x);
-	perp = glm::normalize(perp);
-	float widthScale = constants::LINE_WIDTH / 2.0f;
-	perp *= widthScale;
-	glm::vec2 vert1 = v1 + perp;
-	glm::vec2 vert2 = v1 - perp;
-	glm::vec2 vert3 = v2 + perp;
-	glm::vec2 vert4 = v2 - perp;
-
-	float vertices[] = {
-		vert1.x, vert1.y,
-		vert2.x, vert2.y,
-		vert3.x, vert3.y,
-		vert4.x, vert4.y
-	};
-
-	shader = _shader;
-
-	glGenVertexArrays(1, &VAO);
-	glGenBuffers(1, &VBO);
-
-	glBindVertexArray(VAO);
-
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
-
-	//unbind?
+	length = glm::distance(a, b);
 }
 
 glm::vec2 Line::particleCollision(Particle* p, float r, float damping) {
@@ -90,17 +51,4 @@ glm::vec2 Line::particleCollision(Particle* p, float r, float damping) {
 	}
 
 	return ad;
-}
-
-void Line::render() {
-	shader->use();
-	glm::vec3 color(0.0f, 0.0f, 0.0f); //black
-	glUniform3fv(glGetUniformLocation(shader->id, "color"), 1, glm::value_ptr(color));
-	glBindVertexArray(VAO);
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-}
-
-void Line::close() {
-	glDeleteVertexArrays(1, &VAO);
-	glDeleteBuffers(1, &VBO);
 }

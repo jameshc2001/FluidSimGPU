@@ -70,10 +70,11 @@ namespace constants {
 	inline constexpr float LINE_GRID_RESOLUTION = 4.0f;
 	inline constexpr int L_X_CELLS = (int)(constants::SCREEN_WIDTH / constants::LINE_GRID_RESOLUTION) + 1;
 	inline constexpr int L_Y_CELLS = (int)(constants::SCREEN_HEIGHT / constants::LINE_GRID_RESOLUTION) + 1;
+	inline constexpr int L_NUM_CELLS = L_X_CELLS * L_Y_CELLS + 1; //the +1 is for figuring out if we have reached the end of last cell
 
 	inline constexpr int MAX_PARTICLE_TYPES = 6;
 	inline constexpr int MAX_PARTICLES = 50000;
-	inline constexpr int MAX_LINES = 300;
+	inline constexpr int MAX_LINES = 512;
 
 	//UTILITY CONSTANTS START HERER
 
