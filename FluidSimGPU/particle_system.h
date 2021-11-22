@@ -82,7 +82,6 @@ private:
 	int particles = 0;
 	int numLines = 0;
 	float accumulator = 0;
-	std::array<ParticleProperties, constants::MAX_PARTICLE_TYPES> particleProperties;
 	std::array<Line, constants::MAX_LINES> lines;
 	std::vector<int> lineGrid[constants::L_X_CELLS][constants::L_Y_CELLS];
 
@@ -101,11 +100,20 @@ public:
 	bool performanceMode = false;
 	int wait = false;
 
+	std::array<ParticleProperties, constants::MAX_PARTICLE_TYPES> particleProperties;
+
 	ParticleSystem();
 
 	void addParticles(std::vector<Particle>* particlesToAdd);
 	void spawnDam(int n, int properties, float x, float y);
+
 	void resetParticles();
+	void resetGeometry();
+	void saveState();
+	void loadState();
+
+	void updateProperties();
+	void updateGravity();
 
 	void addLine(glm::vec2 v1, glm::vec2 v2);
 

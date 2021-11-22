@@ -30,6 +30,7 @@ GUI gui;
 
 float frametime = 0;
 float accumulator = 0;
+float timeAtLastSpawn = 0;
 
 bool dKeyDown = false;
 bool fKeyDown = false;
@@ -39,6 +40,15 @@ bool oKeyDown = false;
 bool uKeyDown = false;
 bool pKeyDown = false;
 bool wKeyDown = false;
+
+bool leftMouseJustDown = false;
+bool leftMouseDown = false;
+glm::vec2 mousePos;
+
+//line building variables
+bool buildingLine = false;
+glm::vec2 lineStart;
+glm::vec2 lineEnd;
 
 void framebufferSizeCallback(GLFWwindow* window, int width, int height) {
 	glViewport(0, 0, width, height);
@@ -60,9 +70,9 @@ bool initialise() {
 	//optionally enable MSAA, follow learnopengl for this
 
 	//beg apple to let this code run
-//#ifdef __APPLE__
-//	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-//#endif
+	//#ifdef __APPLE__
+	//	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+	//#endif
 
 	//create window using glfw
 	window = glfwCreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Fluid Sim", NULL, NULL);
@@ -76,6 +86,7 @@ bool initialise() {
 	//glfwSwapInterval(1); //enable vsync, drastically drops cpu usage, could cause stutter with physics?
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 	glfwSetWindowContentScaleCallback(window, windowContentScaleCallback);
+	//glfwSetMouseButtonCallback(window, mouseButtonCallback);
 
 	//use glad to load all opengl function pointers
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
@@ -107,7 +118,8 @@ bool initialise() {
 	return true;
 }
 
-void handleInput() {
+//current time is used for timing particle spawning
+void handleInput(float currentTime) {
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS && !dKeyDown) {
 		particleSystem.spawnDam(30, 0, SCREEN_WIDTH / 2 - 200, SCREEN_HEIGHT / 2);
 		dKeyDown = true;
@@ -173,6 +185,77 @@ void handleInput() {
 	if (glfwGetKey(window, GLFW_KEY_P) == GLFW_RELEASE) {
 		pKeyDown = false;
 	}
+
+	//handle mouse input
+	if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && !leftMouseDown) {
+		leftMouseDown = true;
+		leftMouseJustDown = true;
+	}
+	else {
+		leftMouseJustDown = false;
+	}
+	if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_RELEASE && leftMouseDown) {
+		leftMouseDown = false;
+	}
+
+	if (leftMouseDown) { //i need to limit this to run independent off framerate
+		//first calculate cursor position
+		double x, y;
+		glfwGetCursorPos(window, &x, &y);
+		//get screen size
+		int winx, winy;
+		glfwGetWindowSize(window, &winx, &winy);
+		//convert to world coordinates
+		x = (x / winx) * SCREEN_WIDTH;
+		y = (1.0 - y / winy) * SCREEN_HEIGHT;
+		mousePos = glm::vec2(x, y);
+
+		if (guiVariables::editMode == 0) { //currently in fluid editing mode
+
+			//figure out if enough time has passed to spawn another particle
+			float timeSinceLastSpawn = currentTime - timeAtLastSpawn;
+
+			if (timeSinceLastSpawn >= SPAWN_INTERVAL) {
+				timeAtLastSpawn = currentTime;
+				std::vector<Particle> particlesToAdd;
+				for (int i = 0; i < guiVariables::spawnSpeed; i++) {
+					glm::vec2 pos = glm::vec2(std::rand() / (float)RAND_MAX * guiVariables::spawnRadius, std::rand() / (float)RAND_MAX * guiVariables::spawnRadius);
+					pos += mousePos - glm::vec2(guiVariables::spawnRadius / 2, guiVariables::spawnRadius / 2);
+					particlesToAdd.push_back(Particle(pos.x, pos.y, guiVariables::selectedFluid));
+				}
+				particleSystem.addParticles(&particlesToAdd);
+			}
+		}
+		//else { //currently in geometry editing mode
+		//	if (!buildingLine) { //start building a line
+		//		buildingLine = true;
+		//		lineStart = mousePos;
+		//		std::cout << "line has started being built" << std::endl;
+		//	}
+		//	else { //complete the line that is being built
+		//		buildingLine = false;
+		//		lineEnd = mousePos;
+		//		particleSystem.addLine(lineStart, lineEnd);
+		//		std::cout << "line has been built" << std::endl;
+		//	}
+		//}
+	}
+
+	if (leftMouseJustDown) {
+		if (guiVariables::editMode == 1) {
+			if (!buildingLine) { //start building a line
+				buildingLine = true;
+				lineStart = mousePos;
+				std::cout << "line has started being built" << std::endl;
+			}
+			else { //complete the line that is being built
+				buildingLine = false;
+				lineEnd = mousePos;
+				particleSystem.addLine(lineStart, lineEnd);
+				std::cout << "line has been built" << std::endl;
+			}
+		}
+	}
 }
 
 int main() {
@@ -198,7 +281,7 @@ int main() {
 		accumulator += deltaTime;
 
 		//input handling here
-		handleInput();
+		handleInput(currentTime);
 
 		//sim updating here
 		particleSystem.update(deltaTime);
@@ -210,8 +293,8 @@ int main() {
 
 			//rendering here
 			glClear(GL_COLOR_BUFFER_BIT);
-			gui.render();
 			particleSystem.render();
+			gui.render(); //put ui ontop of particles
 
 			//display new frame
 			glfwSwapBuffers(window);

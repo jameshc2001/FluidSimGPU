@@ -8,27 +8,27 @@ using namespace guiVariables;
 // In your own code you may want to display an actual icon if you are using a merged icon fonts (see docs/FONTS.md)
 static void HelpMarker(const char* desc)
 {
-	ImGui::TextDisabled("(?)");
-	if (ImGui::IsItemHovered())
+	TextDisabled("(?)");
+	if (IsItemHovered())
 	{
-		ImGui::BeginTooltip();
-		ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
-		ImGui::TextUnformatted(desc);
-		ImGui::PopTextWrapPos();
-		ImGui::EndTooltip();
+		BeginTooltip();
+		PushTextWrapPos(GetFontSize() * 35.0f);
+		TextUnformatted(desc);
+		PopTextWrapPos();
+		EndTooltip();
 	}
 }
 
 void GUI::setScaling(float scaleFactor) {
 	//reset to default scaling
 	if (prevScaleFactor != 0) {
-		ImGui::GetStyle().ScaleAllSizes(1.0f / scaleFactor);
+		GetStyle().ScaleAllSizes(1.0f / scaleFactor);
 	}
 
-	ImGui::GetIO().Fonts->Clear();
-	ImGui::GetIO().Fonts->AddFontFromFileTTF("resources/font/OpenSans-Regular.ttf", (float)(constants::FONT_SIZE * scaleFactor));
+	GetIO().Fonts->Clear();
+	GetIO().Fonts->AddFontFromFileTTF("resources/font/OpenSans-Regular.ttf", (float)(constants::FONT_SIZE * scaleFactor));
 	ImGui_ImplOpenGL3_CreateFontsTexture();
-	ImGui::GetStyle().ScaleAllSizes(scaleFactor);
+	GetStyle().ScaleAllSizes(scaleFactor);
 	prevScaleFactor = scaleFactor;
 }
 
@@ -37,27 +37,36 @@ void GUI::initialise(GLFWwindow* _window, ParticleSystem* _particleSystem) {
 	particleSystem = _particleSystem;
 
 	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
+	CreateContext();
 
-	ImGui::StyleColorsDark();
+	StyleColorsDark();
 	GetStyle().FrameRounding = 4.0f;
 	GetStyle().IndentSpacing = 6.0f;
 
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 130");
+
+	fluidNames[0] = "Water";
+	fluidNames[1] = "Oil";
+	for (int i = 2; i < fluidNames.size(); i++) {
+		fluidNames[i] = "Unnamed Fluid";
+	}
 }
 
 void GUI::update() {
 	ImGui_ImplOpenGL3_NewFrame();
 	ImGui_ImplGlfw_NewFrame();
-	ImGui::NewFrame();
+	NewFrame();
 
-	bool showDemoWindow = true;
-	ImGui::ShowDemoWindow(&showDemoWindow);
+	//bool showDemoWindow = true;
+	//ShowDemoWindow(&showDemoWindow);
 
-	ImGui::Begin("Tool Box", NULL, ImGuiWindowFlags_NoCollapse);
+	Begin("Tool Box", NULL, ImGuiWindowFlags_NoCollapse);
 
-	//add framerate!
+	ImGuiIO& io = GetIO();
+
+	// Basic info
+	Text("Simulation average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
 
 	//edit mode
 	if (CollapsingHeader("Edit Mode", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -72,6 +81,58 @@ void GUI::update() {
 		if (editMode == 0) {
 			//show options for fluid creation
 			Text("Fluid Creation Settings");
+
+			DragInt("Spawn Speed", &spawnSpeed, 0.05f, 0.1f, 10.0f, "%d Particles", ImGuiSliderFlags_AlwaysClamp);
+			DragFloat("Spawn Radius", &spawnRadius, 0.05f, 0.1f, 100.0f, "%2.2f", ImGuiSliderFlags_AlwaysClamp);
+
+			Text("Fluids");
+
+			if (BeginTable("split", 2)) {
+				for (int i = 0; i < 6; i++) {
+					ParticleProperties pp = particleSystem->particleProperties[i];
+
+					TableNextColumn();
+					RadioButton(fluidNames[i].c_str(), &selectedFluid, i);
+
+					TableNextColumn();
+					ImVec4 color = ImVec4(pp.color.x, pp.color.y, pp.color.z, pp.color.w);
+					ColorEdit4("", (float*)&color, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel); SameLine();
+					std::string fluid = "Edit Fluid " + std::to_string(i);
+					if (Button(fluid.c_str())) OpenPopup(std::to_string(i).c_str());
+
+					//popup window for editing fluid properties
+					if (BeginPopup(std::to_string(i).c_str())) //only works for i = 0???
+					{
+						std::string txt = "Edit " + fluidNames[i] + "\'s properties";
+						Text(txt.c_str());
+
+						//edit name of fluid
+						static char str0[32] = "";
+						for (int j = 0; j < fluidNames[i].size(); j++) {
+							str0[j] = fluidNames[i][j];
+						}
+						str0[fluidNames[i].size()] = '\0'; //risky ;)
+						InputText("input text", str0, IM_ARRAYSIZE(str0));
+						fluidNames[i] = str0;
+
+						//numeric properties
+						DragFloat("Mass", &pp.mass, 0.05f, 0.1f, 10.0f, "%2.2f", ImGuiSliderFlags_AlwaysClamp);
+						DragFloat("Viscosity", &pp.viscosity, 0.05f, 0.1f, 20.0f, "%2.2f", ImGuiSliderFlags_AlwaysClamp);
+						pp.restDensity = constants::REST_DENSITY * pp.mass;
+
+						//color
+						ColorEdit4("Colour", (float*)&color, NULL);
+						pp.color = glm::vec4(color.x, color.y, color.z, color.w);
+
+						//update to gpu if necessary?
+						particleSystem->particleProperties[i] = pp;
+						particleSystem->updateProperties();
+
+						EndPopup();
+					}
+				}
+				EndTable();
+			}
 		}
 		else {
 			//show options for geometry (select curved or line mode)
@@ -83,10 +144,10 @@ void GUI::update() {
 	//scene controls (delete all particles, geometry, save, load)
 	if (CollapsingHeader("Scene Controls", ImGuiTreeNodeFlags_DefaultOpen)) {
 		Indent();
-		//if (Button("Reset Particles")) sim->removeAllParticles();
-		//if (Button("Reset Geometry")) sim->removeAllGeometry();
-		//if (Button("Save State")) sim->saveState();
-		//if (Button("Load State")) sim->loadState();
+		if (Button("Reset Particles")) particleSystem->resetParticles();
+		if (Button("Reset Geometry")) particleSystem->resetGeometry();
+		if (Button("Save State")) particleSystem->saveState();
+		if (Button("Load State")) particleSystem->loadState();
 		Unindent();
 	}
 
@@ -97,13 +158,18 @@ void GUI::update() {
 		//put a reset button here
 		if (Button("Reset")) {
 			gravity = constants::GRAVITY;
+			particleSystem->updateGravity();
 		}
 
 		//mouse interaction(blowing) enable
 		
 		//InputFloat("Gravity", &gravity, 0.0f, 0.0f, "%2.2f m/s^2"); SameLine();
 		//SliderFloat("Gravity", &gravity, -10.0f, 10.0f, "%2.2f m/s^2");
-		DragFloat("Gravity", &gravity, 0.05f, -10.0f, 10.0f, "%2.2f m/s^2", ImGuiSliderFlags_AlwaysClamp); SameLine();
+		if (DragFloat("Gravity", &gravity, 0.05f, -10.0f, 10.0f, "%2.2f m/s^2", ImGuiSliderFlags_AlwaysClamp)) {
+			particleSystem->updateGravity();
+		}
+		
+		SameLine();
 		HelpMarker("You can click and drag the value,\nor double click to type in your own.");
 
 		//change geometry and bounds damping
@@ -120,12 +186,12 @@ void GUI::update() {
 	//simulation metrics
 
 	//SameLine(); HelpMarker("Choose what will be created (and destroyed) when you click inside the simulation");
-	ImGui::End();
+	End();
 }
 
 void GUI::render() {
-	ImGui::Render();
+	Render();
 	int width, height;
 	glfwGetFramebufferSize(window, &width, &height);
-	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+	ImGui_ImplOpenGL3_RenderDrawData(GetDrawData());
 }

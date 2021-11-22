@@ -7,8 +7,12 @@
 
 namespace guiVariables {
 	inline int editMode = 0;
+	inline int selectedFluid = 0;
 
 	inline float gravity = -9.81f;
+
+	inline int spawnSpeed = 1.0f;
+	inline float spawnRadius = 10.0f;
 }
 
 namespace constants {
@@ -78,7 +82,7 @@ namespace constants {
 
 	//UTILITY CONSTANTS START HERER
 
-	inline constexpr int SPAWN_INTERVAL = 20; //in ticks was 20
+	inline constexpr int SPAWN_INTERVAL = 0.1; //in secdonds
 	inline constexpr float SPAWN_RADIUS = 36.0f; //originally KR * 3
 	inline constexpr int SPAWN_INTERVAL_FAST = 5; //in ticks
 	inline constexpr float SPAWN_RADIUS_FAST = 48.0f; //originally KR * 4

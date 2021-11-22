@@ -10,6 +10,7 @@
 
 #include <iostream>
 #include <iomanip>
+#include <array>
 
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_glfw.h"
@@ -23,6 +24,8 @@ private:
 	GLFWwindow* window;
 	ParticleSystem* particleSystem;;
 	float prevScaleFactor = 0;
+
+	std::array<std::string, constants::MAX_PARTICLE_TYPES> fluidNames;
 
 public:
 	GUI() = default;

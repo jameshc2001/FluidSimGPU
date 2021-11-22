@@ -123,6 +123,7 @@ void main() {
 
 					float polyTemp = kr2 - dist2;
 					viscosity += velocityDifference * (oMass * poly6 * polyTemp * polyTemp * polyTemp);
+					//viscosity += vec2(1,1) * dot(velocityDifference, direction * (oMass * poly6 * polyTemp * polyTemp * polyTemp));
 				}
 			}
 		}

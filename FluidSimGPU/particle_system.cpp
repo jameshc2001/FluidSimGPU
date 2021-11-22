@@ -6,6 +6,9 @@ ParticleSystem::ParticleSystem() {
 	//create basic type
 	particleProperties[0] = ParticleProperties(1, 0.1f, 0, glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
 	particleProperties[1] = ParticleProperties(2, 5.0f, 0, glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+	for (int i = 2; i < MAX_PARTICLE_TYPES; i++) {
+		particleProperties[i] = ParticleProperties(1, 1.0f, 0, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+	}
 }
 
 void ParticleSystem::initialise() {
@@ -162,7 +165,8 @@ void ParticleSystem::addParticles(std::vector<Particle>* particlesToAdd) {
 	particles += particlesToAdd->size();
 	glBindBuffer(GL_UNIFORM_BUFFER, simUBO);
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(int), &particles);
-	std::cout << "\n" << particles << "\n" << std::endl;
+	//std::cout << "\n" << particles << "\n" << std::endl;
+	//uncommenting above line causes the simulation to slow down loads, printing stuff is slow I guess
 }
 
 void ParticleSystem::spawnDam(int n, int properties, float x, float y) {
@@ -181,6 +185,29 @@ void ParticleSystem::resetParticles() {
 	glBindBuffer(GL_UNIFORM_BUFFER, simUBO);
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(int), &particles);
 	std::cout << "\n" << particles << "\n" << std::endl;
+}
+
+void ParticleSystem::resetGeometry() {
+	if (numLines != 0) {
+		numLines = 0;
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, lineSSBO);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Line) * MAX_LINES + sizeof(int) * L_NUM_CELLS + sizeof(int) * 100000, NULL, GL_STATIC_DRAW); //dont know how big so make it super big
+	}
+}
+
+void ParticleSystem::saveState() {} //TODO
+void ParticleSystem::loadState() {} //TODO
+
+//send particle properties to GPU, called by gui
+void ParticleSystem::updateProperties() {
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, propertiesSSBO);
+	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(ParticleProperties) * particleProperties.size(), &particleProperties[0]);
+}
+
+void ParticleSystem::updateGravity() {
+	glBindBuffer(GL_UNIFORM_BUFFER, simUBO);
+	float g = guiVariables::gravity * GRAVITY_SCALE;
+	glBufferSubData(GL_UNIFORM_BUFFER, sizeof(int) * simInts.size() + sizeof(float) * 11, sizeof(float), &g);
 }
 
 void ParticleSystem::addLine(glm::vec2 v1, glm::vec2 v2) {
