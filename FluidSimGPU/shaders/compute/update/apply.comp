@@ -17,7 +17,7 @@ struct Properties { //particle properties
 	float mass;
 	float viscosity;
 	float restDensity;
-	int id;
+	bool diseased;
 	vec4 color;
 };
 
@@ -43,8 +43,8 @@ layout(std430, binding = 2) buffer PropertiesBuffer {
 };
 
 layout(std430, binding = 6) buffer LineBuffer {
-	Line lines[512];
-	int lineCellStart[58102];
+	Line lines[512]; //needs to be updated each time max lines is changed
+	int lineCellStart[14652]; //this number needs to be changed each time line grid resolution is changed!
 	int lineIndexes[]; //unkwown length so must be at end of buffer
 };
 

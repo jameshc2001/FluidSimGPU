@@ -32,6 +32,8 @@ float frametime = 0;
 float accumulator = 0;
 float timeAtLastSpawn = 0;
 
+bool pause = false;
+
 bool dKeyDown = false;
 bool fKeyDown = false;
 bool rKeyDown = false;
@@ -40,9 +42,12 @@ bool oKeyDown = false;
 bool uKeyDown = false;
 bool pKeyDown = false;
 bool wKeyDown = false;
+bool aKeyDown = false;
 
 bool leftMouseJustDown = false;
 bool leftMouseDown = false;
+bool rightMouseJustDown = false;
+bool rightMouseDown = false;
 glm::vec2 mousePos;
 
 //line building variables
@@ -50,12 +55,28 @@ bool buildingLine = false;
 glm::vec2 lineStart;
 glm::vec2 lineEnd;
 
+//circle rendering variables
+float circleVertices[] = {
+	0.5f,  0.5f,
+	0.5f, -0.5f,
+	-0.5f, -0.5f,
+	-0.5f,  0.5f
+};
+unsigned int circleIndices[] = {
+	0, 1, 3, 1, 2, 3
+};
+unsigned int circleVBO, circleVAO, circleEBO;
+Shader circleShader;
+float xscale, yscale;
+
+
 void framebufferSizeCallback(GLFWwindow* window, int width, int height) {
 	glViewport(0, 0, width, height);
+	xscale = (float)width / (float)SCREEN_WIDTH;
 }
 
-void windowContentScaleCallback(GLFWwindow* window, float xscale, float yscale) {
-	gui.setScaling(xscale); //assume xscale == yscale
+void windowContentScaleCallback(GLFWwindow* window, float _xscale, float _yscale) {
+	gui.setScaling(_xscale); //assume xscale == yscale
 }
 
 bool initialise() {
@@ -95,27 +116,60 @@ bool initialise() {
 		return false;
 	}
 
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_BLEND);
+
 	//glEnable(GL_PROGRAM_POINT_SIZE);
 
 	//setup dear imgui
 	gui.initialise(window, &particleSystem);
 	//do initial scaling
-	float xscale, yscale;
 	glfwGetWindowContentScale(window, &xscale, &yscale);
 	gui.setScaling(xscale); //assume xscale == yscale
 
 	//generate projection matrix
 	glm::mat4 projection = glm::ortho(0.0f, (float)SCREEN_WIDTH, 0.0f, (float)SCREEN_HEIGHT, -1.0f, 1.0f);
 	//load shaders
-	lineShader.load("shaders/lineVertex.vert", "shaders/lineFragment.frag"); //NEED TO SET PROJECTION
+	lineShader.load("shaders/lineVertex.vert", "shaders/lineFragment.frag");
 	lineShader.use(); //very important
-	glUniformMatrix4fv(glGetUniformLocation(lineShader.id, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+	//glUniformMatrix4fv(glGetUniformLocation(lineShader.id, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+	lineShader.setMat4("projection", projection);
 
 	//set line width to reasonable size
 	glLineWidth(4.0f);
 
+	//setup circle rendering
+	glGenVertexArrays(1, &circleVAO);
+	glGenBuffers(1, &circleVBO);
+	glGenBuffers(1, &circleEBO);
+	glBindVertexArray(circleVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, circleVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(circleVertices), circleVertices, GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, circleEBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(circleIndices), circleIndices, GL_DYNAMIC_DRAW);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+	circleShader.load("shaders/circleVertex.vert", "shaders/circleFragment.frag");
+	circleShader.use();
+	circleShader.setMat4("projection", projection);
+	glm::mat4 identity(1.0f);
+	circleShader.setMat4("model", identity);
+
 	//initialisation successful
 	return true;
+}
+
+void renderCircle(glm::vec2 position, float radius) {
+	circleShader.use();
+	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(position, 0));
+	model = glm::scale(model, glm::vec3(2*radius, 2*radius, 0));
+	circleShader.setMat4("model", model);
+	circleShader.setFloat("circleRadius", radius * xscale);
+	circleShader.setVec2("circleCentre", position * xscale);
+	glBindVertexArray(circleVAO);
+	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 }
 
 //current time is used for timing particle spawning
@@ -123,6 +177,10 @@ void handleInput(float currentTime) {
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS && !dKeyDown) {
 		particleSystem.spawnDam(30, 0, SCREEN_WIDTH / 2 - 200, SCREEN_HEIGHT / 2);
 		dKeyDown = true;
+	}
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS && !aKeyDown) {
+		aKeyDown = true;
+		pause = !pause;
 	}
 	if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS && !fKeyDown) {
 		particleSystem.spawnDam(30, 1, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
@@ -133,8 +191,8 @@ void handleInput(float currentTime) {
 		rKeyDown = true;
 	}
 	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS && !wKeyDown) {
-		particleSystem.addLine(glm::vec2(200, 500), glm::vec2(600, 100));
-		particleSystem.addLine(glm::vec2(600, 100), glm::vec2(1000, 300));
+		particleSystem.addLine(glm::vec2(200, 500), glm::vec2(600, 100), false);
+		particleSystem.addLine(glm::vec2(600, 100), glm::vec2(1000, 300), true);
 		wKeyDown = true;
 	}
 	if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS && !iKeyDown) {
@@ -164,6 +222,9 @@ void handleInput(float currentTime) {
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_RELEASE) {
 		dKeyDown = false;
 	}
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_RELEASE) {
+		aKeyDown = false;
+	}
 	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_RELEASE) {
 		wKeyDown = false;
 	}
@@ -187,6 +248,7 @@ void handleInput(float currentTime) {
 	}
 
 	//handle mouse input
+	//left
 	if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && !leftMouseDown) {
 		leftMouseDown = true;
 		leftMouseJustDown = true;
@@ -197,23 +259,47 @@ void handleInput(float currentTime) {
 	if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_RELEASE && leftMouseDown) {
 		leftMouseDown = false;
 	}
+	//right
+	if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS && !rightMouseDown) {
+		rightMouseDown = true;
+		rightMouseJustDown = true;
+	}
+	else {
+		rightMouseJustDown = false;
+	}
+	if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_RELEASE && rightMouseDown) {
+		rightMouseDown = false;
+	}
 
-	if (leftMouseDown) { //i need to limit this to run independent off framerate
-		//first calculate cursor position
-		double x, y;
-		glfwGetCursorPos(window, &x, &y);
-		//get screen size
-		int winx, winy;
-		glfwGetWindowSize(window, &winx, &winy);
-		//convert to world coordinates
-		x = (x / winx) * SCREEN_WIDTH;
-		y = (1.0 - y / winy) * SCREEN_HEIGHT;
-		mousePos = glm::vec2(x, y);
+	//check if Dear ImGUI is using the mouse
+	if (gui.hasMouse()) return;
 
+	//first calculate cursor position
+	double x, y;
+	glfwGetCursorPos(window, &x, &y);
+	//get screen size
+	int winx, winy;
+	glfwGetWindowSize(window, &winx, &winy);
+	//convert to world coordinates
+	x = (x / winx) * SCREEN_WIDTH; //can use xscale for these i think
+	y = (1.0 - y / winy) * SCREEN_HEIGHT;
+	mousePos = glm::vec2(x, y);
+
+	//check to color in line red for deletion
+	if (guiVariables::editMode == 1) {
+		particleSystem.setDeleteLine(mousePos);
+	}
+
+	//draw line being build
+	if (buildingLine) {
+		particleSystem.renderLine(lineStart, mousePos);
+	}
+
+	if (leftMouseDown) {
 		if (guiVariables::editMode == 0) { //currently in fluid editing mode
 
 			//figure out if enough time has passed to spawn another particle
-			float timeSinceLastSpawn = currentTime - timeAtLastSpawn;
+			float timeSinceLastSpawn = currentTime - timeAtLastSpawn; //makes this framerate independent
 
 			if (timeSinceLastSpawn >= SPAWN_INTERVAL) {
 				timeAtLastSpawn = currentTime;
@@ -226,22 +312,9 @@ void handleInput(float currentTime) {
 				particleSystem.addParticles(&particlesToAdd);
 			}
 		}
-		//else { //currently in geometry editing mode
-		//	if (!buildingLine) { //start building a line
-		//		buildingLine = true;
-		//		lineStart = mousePos;
-		//		std::cout << "line has started being built" << std::endl;
-		//	}
-		//	else { //complete the line that is being built
-		//		buildingLine = false;
-		//		lineEnd = mousePos;
-		//		particleSystem.addLine(lineStart, lineEnd);
-		//		std::cout << "line has been built" << std::endl;
-		//	}
-		//}
 	}
 
-	if (leftMouseJustDown) {
+	if (leftMouseJustDown) { //ie, not held down
 		if (guiVariables::editMode == 1) {
 			if (!buildingLine) { //start building a line
 				buildingLine = true;
@@ -251,8 +324,26 @@ void handleInput(float currentTime) {
 			else { //complete the line that is being built
 				buildingLine = false;
 				lineEnd = mousePos;
-				particleSystem.addLine(lineStart, lineEnd);
+				particleSystem.addLine(lineStart, lineEnd, true);
 				std::cout << "line has been built" << std::endl;
+			}
+		}
+	}
+
+	if (rightMouseDown) {
+		if (guiVariables::editMode == 0) {
+			particleSystem.removeParticles(mousePos, guiVariables::deleteRadius);
+			renderCircle(mousePos, guiVariables::deleteRadius);
+		}
+	}
+
+	if (rightMouseJustDown) {
+		if (guiVariables::editMode == 1) {
+			if (!buildingLine) {
+				particleSystem.removeLine(mousePos);
+			}
+			else { //cancel current line
+				buildingLine = false;
 			}
 		}
 	}
@@ -280,11 +371,13 @@ int main() {
 		prevTime = currentTime;
 		accumulator += deltaTime;
 
+		glClear(GL_COLOR_BUFFER_BIT); //bad for performance?
+
 		//input handling here
 		handleInput(currentTime);
 
 		//sim updating here
-		particleSystem.update(deltaTime);
+		if (!pause) particleSystem.update(deltaTime);
 
 		//std::cout << accumulator << "   " << frametime << std::endl;
 		if (accumulator >= frametime) {
@@ -292,7 +385,8 @@ int main() {
 			gui.update();
 
 			//rendering here
-			glClear(GL_COLOR_BUFFER_BIT);
+			//glClear(GL_COLOR_BUFFER_BIT);
+			//if (rightMouseDown) renderCircle();
 			particleSystem.render();
 			gui.render(); //put ui ontop of particles
 
@@ -302,7 +396,7 @@ int main() {
 		}
 
 		//poll new events
-		glfwPollEvents();
+		glfwPollEvents(); //really slow function
 	}
 
 	glfwTerminate();

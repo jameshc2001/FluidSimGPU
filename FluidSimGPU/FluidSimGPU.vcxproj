@@ -176,6 +176,8 @@
     <ClCompile Include="line.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="particle_system.cpp" />
+    <None Include="shaders\circleFragment.frag" />
+    <None Include="shaders\circleVertex.vert" />
     <None Include="shaders\compute\render\msGenVertices.comp">
       <FileType>Document</FileType>
     </None>
@@ -190,6 +192,7 @@
     <None Include="shaders\compute\render\genVertices.comp" />
     <None Include="shaders\compute\update\improve.comp" />
     <None Include="shaders\compute\update\predict.comp" />
+    <None Include="shaders\compute\utility\remove.comp" />
     <None Include="shaders\lineFragment.frag" />
     <None Include="shaders\lineVertex.vert" />
     <None Include="shaders\ms.frag" />

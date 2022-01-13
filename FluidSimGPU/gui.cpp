@@ -32,6 +32,10 @@ void GUI::setScaling(float scaleFactor) {
 	prevScaleFactor = scaleFactor;
 }
 
+bool GUI::hasMouse() {
+	return GetIO().WantCaptureMouse;
+}
+
 void GUI::initialise(GLFWwindow* _window, ParticleSystem* _particleSystem) {
 	window = _window;
 	particleSystem = _particleSystem;
@@ -67,6 +71,7 @@ void GUI::update() {
 
 	// Basic info
 	Text("Simulation average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+	Text("Particles: %d", particleSystem->getParticles());
 
 	//edit mode
 	if (CollapsingHeader("Edit Mode", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -80,64 +85,99 @@ void GUI::update() {
 
 		if (editMode == 0) {
 			//show options for fluid creation
-			Text("Fluid Creation Settings");
-
+			Text("Control Settings");
 			DragInt("Spawn Speed", &spawnSpeed, 0.05f, 0.1f, 10.0f, "%d Particles", ImGuiSliderFlags_AlwaysClamp);
 			DragFloat("Spawn Radius", &spawnRadius, 0.05f, 0.1f, 100.0f, "%2.2f", ImGuiSliderFlags_AlwaysClamp);
+			DragFloat("Delete Radius", &deleteRadius, 0.05f, 0.1f, 100.0f, "%2.2f", ImGuiSliderFlags_AlwaysClamp);
 
-			Text("Fluids");
-
-			if (BeginTable("split", 2)) {
-				for (int i = 0; i < 6; i++) {
-					ParticleProperties pp = particleSystem->particleProperties[i];
-
-					TableNextColumn();
-					RadioButton(fluidNames[i].c_str(), &selectedFluid, i);
-
-					TableNextColumn();
-					ImVec4 color = ImVec4(pp.color.x, pp.color.y, pp.color.z, pp.color.w);
-					ColorEdit4("", (float*)&color, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel); SameLine();
-					std::string fluid = "Edit Fluid " + std::to_string(i);
-					if (Button(fluid.c_str())) OpenPopup(std::to_string(i).c_str());
-
-					//popup window for editing fluid properties
-					if (BeginPopup(std::to_string(i).c_str())) //only works for i = 0???
-					{
-						std::string txt = "Edit " + fluidNames[i] + "\'s properties";
-						Text(txt.c_str());
-
-						//edit name of fluid
-						static char str0[32] = "";
-						for (int j = 0; j < fluidNames[i].size(); j++) {
-							str0[j] = fluidNames[i][j];
-						}
-						str0[fluidNames[i].size()] = '\0'; //risky ;)
-						InputText("input text", str0, IM_ARRAYSIZE(str0));
-						fluidNames[i] = str0;
-
-						//numeric properties
-						DragFloat("Mass", &pp.mass, 0.05f, 0.1f, 10.0f, "%2.2f", ImGuiSliderFlags_AlwaysClamp);
-						DragFloat("Viscosity", &pp.viscosity, 0.05f, 0.1f, 20.0f, "%2.2f", ImGuiSliderFlags_AlwaysClamp);
-						pp.restDensity = constants::REST_DENSITY * pp.mass;
-
-						//color
-						ColorEdit4("Colour", (float*)&color, NULL);
-						pp.color = glm::vec4(color.x, color.y, color.z, color.w);
-
-						//update to gpu if necessary?
-						particleSystem->particleProperties[i] = pp;
-						particleSystem->updateProperties();
-
-						EndPopup();
-					}
+			if (CollapsingHeader("Spawn Dam", ImGuiTreeNodeFlags_DefaultOpen)) {
+				Indent();
+				InputFloat2("Location", &damPosition[0]); SameLine();
+				HelpMarker("Centre is (640, 360) Values above (1280, 720) and below (0, 0) may cause issues.");
+				DragInt("Size", &damSize, 0.05f, 0.1f, 30.0f, "%d Square of Particles", ImGuiSliderFlags_AlwaysClamp);
+				if (Button("Spawn")) {
+					particleSystem->spawnDam(damSize, selectedFluid, damPosition.x, damPosition.y);
 				}
-				EndTable();
+				Unindent();
+			}
+
+			//Text("Fluids");
+			if (CollapsingHeader("Fluid Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
+				Indent();
+				if (BeginTable("split", 2)) {
+					for (int i = 0; i < 6; i++) {
+						ParticleProperties pp = particleSystem->particleProperties[i];
+
+						TableNextColumn();
+						RadioButton(fluidNames[i].c_str(), &selectedFluid, i);
+
+						TableNextColumn();
+						ImVec4 color = ImVec4(pp.color.x, pp.color.y, pp.color.z, pp.color.w);
+						ColorEdit4("", (float*)&color, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel); SameLine();
+						std::string fluid = "Edit Fluid " + std::to_string(i);
+						if (Button(fluid.c_str())) OpenPopup(std::to_string(i).c_str());
+
+						//popup window for editing fluid properties
+						if (BeginPopup(std::to_string(i).c_str()))
+						{
+							std::string txt = "Edit " + fluidNames[i] + "\'s properties";
+							Text(txt.c_str());
+
+							//edit name of fluid
+							static char str0[32] = "";
+							for (int j = 0; j < fluidNames[i].size(); j++) {
+								str0[j] = fluidNames[i][j];
+							}
+							str0[fluidNames[i].size()] = '\0'; //risky ;)
+							InputText("Fluid Name", str0, IM_ARRAYSIZE(str0));
+							fluidNames[i] = str0;
+
+							bool needToUpdate = false;
+
+							//numeric properties
+							if (DragFloat("Mass", &pp.mass, 0.05f, 0.1f, 10.0f, "%2.2f", ImGuiSliderFlags_AlwaysClamp)) needToUpdate = true;
+							if (DragFloat("Viscosity", &pp.viscosity, 0.05f, 0.1f, 20.0f, "%2.2f", ImGuiSliderFlags_AlwaysClamp)) needToUpdate = true;
+							pp.restDensity = constants::REST_DENSITY * pp.mass;
+
+							//color
+							if (ColorEdit4("Colour", (float*)&color, NULL)) needToUpdate = true;;
+							pp.color = glm::vec4(color.x, color.y, color.z, color.w);
+
+							//diseased, conversion to bool OK
+							if (Checkbox("Diseased", (bool*)&pp.diseased)) needToUpdate = true;
+
+							//update to gpu if necessary
+							if (needToUpdate) {
+								particleSystem->particleProperties[i] = pp;
+								particleSystem->updateProperties();
+							}
+
+							EndPopup();
+						}
+					}
+					EndTable();
+				}
+				Unindent();
 			}
 		}
 		else {
 			//show options for geometry (select curved or line mode)
 			Text("Geometry Creation Settings");
 		}
+		Unindent();
+	}
+
+	//vector field controls
+	if (CollapsingHeader("Vector Fields", ImGuiTreeNodeFlags_DefaultOpen)) {
+		Indent();
+		bool needToUpdate = false;
+		if (Checkbox("Gravity", &particleSystem->gravityEnabled)) needToUpdate = true;
+		if (Checkbox("Wind", &particleSystem->windEnabled)) needToUpdate = true;
+		Indent();
+		if (InputFloat2("Wind Centre", &particleSystem->windCentre[0])) needToUpdate = true;
+		if (InputFloat2("Wind Strength", &particleSystem->windStrength[0])) needToUpdate = true;
+		Unindent();
+		if (needToUpdate) particleSystem->setVectorField();
 		Unindent();
 	}
 

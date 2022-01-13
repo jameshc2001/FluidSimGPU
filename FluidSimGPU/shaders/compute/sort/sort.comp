@@ -63,6 +63,6 @@ void main() {
 //	int pOffset = atomicAdd(gridData[numCells * 3 + cellID], 1);
 //	particles[gridData[id] + pOffset] = p;
 
-	gridData[numCells * 3 + id] += gridData[cellID];
+	gridData[numCells * 3 + id] += gridData[cellID]; //adding pOffset
 	particles[gridData[numCells * 3 + id]] = p;
 }

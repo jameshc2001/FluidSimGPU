@@ -48,6 +48,7 @@ private:
 	Shader genVerticesShader;
 	Shader colorShader;
 	Shader genMSVerticesShader;
+	Shader removeShader;
 
 	unsigned int particleSSBO;
 	unsigned int gridCellSSBO;
@@ -62,6 +63,8 @@ private:
 
 	unsigned int lineVAO;
 	unsigned int lineVBO;
+	unsigned int deleteLineVAO;
+	unsigned int deleteLineVBO;
 	unsigned int msVAO;
 	unsigned int pointVAO;
 	unsigned int pointSSBO;
@@ -85,12 +88,15 @@ private:
 	std::array<Line, constants::MAX_LINES> lines;
 	std::vector<int> lineGrid[constants::L_X_CELLS][constants::L_Y_CELLS];
 
+	int prevDeleteLine = -1; //-1 indicates no prev line
+
 	//particle functions
 	void updateGridGPU();
 	void generateVertexData();
 	void updateParticles();
 
 	//line functions
+	void setLineColor(int line, glm::vec3 color);
 	void updateLinesGPU();
 
 public:
@@ -100,11 +106,18 @@ public:
 	bool performanceMode = false;
 	int wait = false;
 
+	//vector field settings
+	bool gravityEnabled = true;
+	bool windEnabled = false;
+	glm::vec2 windCentre = glm::vec2(SCREEN_WIDTH/2, SCREEN_HEIGHT/2);
+	glm::vec2 windStrength = glm::vec2(0.01, 0.01);
+
 	std::array<ParticleProperties, constants::MAX_PARTICLE_TYPES> particleProperties;
 
 	ParticleSystem();
 
 	void addParticles(std::vector<Particle>* particlesToAdd);
+	void removeParticles(glm::vec2 position, float radius);
 	void spawnDam(int n, int properties, float x, float y);
 
 	void resetParticles();
@@ -115,8 +128,14 @@ public:
 	void updateProperties();
 	void updateGravity();
 
-	void addLine(glm::vec2 v1, glm::vec2 v2);
+	void addLine(glm::vec2 v1, glm::vec2 v2, bool updateGPU);
+	void removeLine(glm::vec2 position);
+	int getParticles() { return particles; }
 
+	void setDeleteLine(glm::vec2 position); //change its color to red
+	void renderLine(glm::vec2 a, glm::vec2 b);
+
+	void setVectorField();
 	void initialise();
 	void update(float deltaTime); //decide vertex stuff
 	void render();

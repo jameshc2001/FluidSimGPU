@@ -11,6 +11,14 @@ ParticleSystem::ParticleSystem() {
 	}
 }
 
+void ParticleSystem::setVectorField() {
+	predictShader.use();
+	predictShader.setBool("gravityEnabled", gravityEnabled);
+	predictShader.setBool("windEnabled", windEnabled);
+	predictShader.setVec2("centre", windCentre);
+	predictShader.setVec2("strength", windStrength);
+}
+
 void ParticleSystem::initialise() {
 	glPointSize(PARTICLE_DIAMETER);
 
@@ -47,9 +55,14 @@ void ParticleSystem::initialise() {
 	lineShader.use();
 	glUniformMatrix4fv(glGetUniformLocation(lineShader.id, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 
+	//remove particles shader
+	removeShader.loadCompute("shaders/compute/utility/remove.comp");
+
 	applyShader.use();
 	applyShader.setFloat("lineGridRes", LINE_GRID_RESOLUTION);
 	applyShader.setInt("lineXCells", L_X_CELLS);
+
+	setVectorField();
 
 
 	glBindVertexArray(0); //probably useless
@@ -114,6 +127,17 @@ void ParticleSystem::initialise() {
 	glEnableVertexAttribArray(1);
 	glBindVertexArray(0);
 
+	//setup buffers for delete line rendering, unlike particles this is all done cpu side
+	glGenVertexArrays(1, &deleteLineVAO);
+	glGenBuffers(1, &deleteLineVBO);
+	glBindVertexArray(deleteLineVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, deleteLineVBO);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0); //vertex position as vec2
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(sizeof(float) * 2)); //color as vec3
+	glEnableVertexAttribArray(1);
+	glBindVertexArray(0);
+
 
 	//setup uniform buffer for holding simulation values
 	glGenBuffers(1, &simUBO);
@@ -169,6 +193,22 @@ void ParticleSystem::addParticles(std::vector<Particle>* particlesToAdd) {
 	//uncommenting above line causes the simulation to slow down loads, printing stuff is slow I guess
 }
 
+void ParticleSystem::removeParticles(glm::vec2 position, float radius) {
+	removeShader.use();
+
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, gridCellSSBO);
+	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(int), &particles);
+
+	removeShader.setFloat("deleteRadius", radius);
+	removeShader.setVec2("deletePosition", position);
+	glDispatchCompute(ceil((float)particles / 1024.0f), 1, 1);
+
+	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+	glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(int), &particles);
+	glBindBuffer(GL_UNIFORM_BUFFER, simUBO);
+	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(int), &particles);
+}
+
 void ParticleSystem::spawnDam(int n, int properties, float x, float y) {
 	std::vector<Particle> particlesToAdd;
 	for (float i = x; i < x + n * KERNEL_RADIUS; i += KERNEL_RADIUS) {
@@ -210,7 +250,7 @@ void ParticleSystem::updateGravity() {
 	glBufferSubData(GL_UNIFORM_BUFFER, sizeof(int) * simInts.size() + sizeof(float) * 11, sizeof(float), &g);
 }
 
-void ParticleSystem::addLine(glm::vec2 v1, glm::vec2 v2) {
+void ParticleSystem::addLine(glm::vec2 v1, glm::vec2 v2, bool updateGPU) {
 	lines[numLines] = Line(v1, v2);
 	int l = numLines;
 
@@ -233,9 +273,9 @@ void ParticleSystem::addLine(glm::vec2 v1, glm::vec2 v2) {
 		//first add this line to the current cell and surrounding cells
 		for (int i = x0 - 1; i <= x0 + 1; i++) {
 			for (int j = y0 - 1; j <= y0 + 1; j++) {
-				if (i < 0 || j < 0 || i >= L_X_CELLS || j >= L_Y_CELLS) continue;
-				if (lineGrid[i][j].size() > 0) {
-					if (lineGrid[i][j].back() == l) continue; //already added line to this cell
+				if (i < 0 || j < 0 || i >= L_X_CELLS || j >= L_Y_CELLS) continue; //out of bounds check
+				if (lineGrid[i][j].size() > 0) { //for some reason, this cause collision issues
+					//if (lineGrid[i][j].back() == l) continue; //already added line to this cell
 				}
 				lineGrid[i][j].push_back(l);
 			}
@@ -259,8 +299,107 @@ void ParticleSystem::addLine(glm::vec2 v1, glm::vec2 v2) {
 	numLines++;
 
 	//update this all on the gpu side
-	updateLinesGPU(); //maybe only call this if numLines changes
-	//makes more sense for when we implement the delete function
+	if (updateGPU) updateLinesGPU();
+}
+
+void ParticleSystem::removeLine(glm::vec2 position) {
+	//get grid coordinates of mouse position
+	int x = floor(position.x / LINE_GRID_RESOLUTION);
+	int y = floor(position.y / LINE_GRID_RESOLUTION);
+
+	if (lineGrid[x][y].size() == 0) return; //no line at position
+
+	int lineToRemove = lineGrid[x][y][0]; //remove first line at position
+	
+	//remove said line
+	if (numLines == 1) {
+		numLines = 0;
+	}
+	else if (lineToRemove == numLines - 1) {
+		numLines--;
+	}
+	else {
+		lines[lineToRemove] = lines[numLines - 1];
+		numLines--;
+	}
+
+	//clear lineGrid, must be a faster way than this
+	for (int i = 0; i < L_X_CELLS; i++) {
+		for (int j = 0; j < L_Y_CELLS; j++) {
+			lineGrid[i][j].clear();
+		}
+	}
+
+	//special case
+	if (numLines == 0) {
+		//clear buffer
+		glBindBuffer(GL_ARRAY_BUFFER, lineVBO);
+		GLint zero = 0;
+		glClearBufferData(GL_ARRAY_BUFFER, GL_R32I, GL_RED, GL_INT, &zero);
+		//also need to clear shader buffer
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, lineSSBO);
+		glClearBufferData(GL_SHADER_STORAGE_BUFFER, GL_R32I, GL_RED, GL_INT, &zero);
+		return;
+	}
+
+	int oldNumLines = numLines;
+	numLines = 0;
+	//re-add lines
+	for (int i = 0; i < oldNumLines; i++) {
+		addLine(lines[i].a, lines[i].b, false);
+	}
+
+	//update gpu
+	updateLinesGPU();
+}
+
+void ParticleSystem::setDeleteLine(glm::vec2 position) {
+	//get grid coordinates of mouse position
+	int x = floor(position.x / LINE_GRID_RESOLUTION);
+	int y = floor(position.y / LINE_GRID_RESOLUTION);
+
+	//check if in bounds (mouse can do weird things) or if line selected
+	if (x < 0 || y < 0 || x >= L_X_CELLS || y >= L_Y_CELLS || lineGrid[x][y].size() == 0) {
+		//set prev line back
+		if (prevDeleteLine != -1) {
+			setLineColor(prevDeleteLine, glm::vec3(0, 0, 0));
+			prevDeleteLine = -1;
+		}
+		return;
+	}
+
+	int lineToRender = lineGrid[x][y][0]; //render first line at position
+
+	//check if its the same line as previous, setting previous back to black if necessary
+	if (lineToRender != prevDeleteLine && prevDeleteLine != -1) {
+		setLineColor(prevDeleteLine, glm::vec3(0, 0, 0));
+		prevDeleteLine = -1;
+	}
+
+	if (lineToRender != prevDeleteLine) {
+		setLineColor(lineToRender, glm::vec3(1, 0, 0));
+		prevDeleteLine = lineToRender;
+	}
+}
+
+void ParticleSystem::setLineColor(int line, glm::vec3 color) {
+	glBindBuffer(GL_ARRAY_BUFFER, lineVBO);
+	glBufferSubData(GL_ARRAY_BUFFER, 2 * line * 5 * sizeof(float) + 2 * sizeof(float), 3 * sizeof(float), &color[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, 2 * line * 5 * sizeof(float) + (2 + 5) * sizeof(float), 3 * sizeof(float), &color[0]);
+}
+
+void ParticleSystem::renderLine(glm::vec2 a, glm::vec2 b) {
+	std::vector<LineVertexData> linevd;
+	glm::vec3 color = glm::vec3(0, 0, 0);
+	LineVertexData vd = { a, color };
+	linevd.push_back(vd);
+	vd = { b, color };
+	linevd.push_back(vd);
+	glBindVertexArray(deleteLineVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, deleteLineVBO);
+	glBufferData(GL_ARRAY_BUFFER, 10 * sizeof(float), &linevd[0], GL_DYNAMIC_DRAW);
+	lineShader.use();
+	glDrawArrays(GL_LINES, 0, 2);
 }
 
 void ParticleSystem::updateLinesGPU() {
@@ -274,12 +413,12 @@ void ParticleSystem::updateLinesGPU() {
 		vd = { line->b, color };
 		linevd.push_back(vd);
 	}
-	glBindVertexArray(lineVAO);
+	glBindVertexArray(lineVAO); //probably don't need this line
 	glBindBuffer(GL_ARRAY_BUFFER, lineVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(LineVertexData) * numLines * 2, &linevd[0], GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(LineVertexData) * numLines * 2, &linevd[0], GL_STATIC_DRAW); //*2 because each line has 2 vertices
 	glBindVertexArray(0);
 
-	//genereate crazy grid stuff
+	//generate crazy grid stuff
 	std::vector<int> lineIndexes; //we can't know the length of this
 	std::vector<int> lineCellStart; //length of this is always the same
 	for (int y = 0; y < L_Y_CELLS; y++) { //loop through y before x, super important!
@@ -411,14 +550,14 @@ void ParticleSystem::render() {
 	if (particles != 0) {
 		if (drawParticles) {
 			glBindVertexArray(pointVAO);
-			glBindBuffer(GL_ARRAY_BUFFER, pointSSBO);
+			//glBindBuffer(GL_ARRAY_BUFFER, pointSSBO);
 			particlePointShader.use();
 			glDrawArrays(GL_POINTS, 0, particles);
 		}
 
 		if (drawMs) {
 			glBindVertexArray(msVAO);
-			glBindBuffer(GL_ARRAY_BUFFER, msSSBO);
+			//glBindBuffer(GL_ARRAY_BUFFER, msSSBO);
 			msShader.use();
 			glDrawArrays(GL_TRIANGLES, 0, C_NUM_CELLS * 9);
 		}
@@ -426,7 +565,7 @@ void ParticleSystem::render() {
 
 	//draw geometry on top of everything else
 	glBindVertexArray(lineVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, lineVBO);
+	//glBindBuffer(GL_ARRAY_BUFFER, lineVBO); //maybe unnecessary;
 	lineShader.use();
 	glDrawArrays(GL_LINES, 0, numLines * 2); //2 vertices per line
 

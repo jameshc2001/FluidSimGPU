@@ -32,6 +32,8 @@ public:
 
 	void setScaling(float scaleFactor);
 
+	bool hasMouse();
+
 	void initialise(GLFWwindow* _window, ParticleSystem* _particleSystem);
 	void update();
 	void render();

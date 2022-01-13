@@ -2,6 +2,9 @@
 
 #define _USE_MATH_DEFINES
 #include <math.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 //this is a test
 
@@ -12,7 +15,11 @@ namespace guiVariables {
 	inline float gravity = -9.81f;
 
 	inline int spawnSpeed = 1.0f;
-	inline float spawnRadius = 10.0f;
+	inline float spawnRadius = 40.0f;
+	inline float deleteRadius = 40.0f;
+
+	inline int damSize = 10;
+	inline glm::vec2 damPosition = glm::vec2(640, 360);
 }
 
 namespace constants {
@@ -71,7 +78,7 @@ namespace constants {
 	inline constexpr int C_NUM_CELLS = C_X_CELLS * C_Y_CELLS;
 
 	//dimensions of line grid
-	inline constexpr float LINE_GRID_RESOLUTION = 4.0f;
+	inline constexpr float LINE_GRID_RESOLUTION = 8.0f;
 	inline constexpr int L_X_CELLS = (int)(constants::SCREEN_WIDTH / constants::LINE_GRID_RESOLUTION) + 1;
 	inline constexpr int L_Y_CELLS = (int)(constants::SCREEN_HEIGHT / constants::LINE_GRID_RESOLUTION) + 1;
 	inline constexpr int L_NUM_CELLS = L_X_CELLS * L_Y_CELLS + 1; //the +1 is for figuring out if we have reached the end of last cell

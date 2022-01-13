@@ -118,5 +118,8 @@
     </None>
     <None Include="shaders\ms.vert" />
     <None Include="shaders\ms.frag" />
+    <None Include="shaders\compute\utility\remove.comp" />
+    <None Include="shaders\circleFragment.frag" />
+    <None Include="shaders\circleVertex.vert" />
   </ItemGroup>
 </Project>

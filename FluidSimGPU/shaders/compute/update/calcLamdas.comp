@@ -17,7 +17,7 @@ struct Properties { //particle properties
 	float mass;
 	float viscosity;
 	float restDensity;
-	int id;
+	bool diseased;
 	vec4 color;
 };
 

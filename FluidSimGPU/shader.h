@@ -161,4 +161,16 @@ public:
 	void setInt(const char* name, int val) {
 		glUniform1i(glGetUniformLocation(id, name), val);
 	}
+
+	void setBool(const char* name, bool val) {
+		setInt(name, (int)val);
+	}
+
+	void setVec2(const char* name, glm::vec2 val) {
+		glUniform2f(glGetUniformLocation(id, name), val.x, val.y);
+	}
+
+	void setMat4(const char* name, glm::mat4 val) {
+		glUniformMatrix4fv(glGetUniformLocation(id, name), 1, GL_FALSE, glm::value_ptr(val));
+	}
 };
