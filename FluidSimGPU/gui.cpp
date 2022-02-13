@@ -55,6 +55,8 @@ void GUI::initialise(GLFWwindow* _window, ParticleSystem* _particleSystem) {
 	for (int i = 2; i < fluidNames.size(); i++) {
 		fluidNames[i] = "Unnamed Fluid";
 	}
+
+	savedFluidNames = fluidNames;
 }
 
 void GUI::update() {
@@ -71,22 +73,23 @@ void GUI::update() {
 
 	// Basic info
 	Text("Simulation average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-	Text("Particles: %d", particleSystem->getParticles());
+	Text("Particles: %d, \t Diseased: %d", particleSystem->getParticles(), particleSystem->getDiseased());
 
 	//edit mode
 	if (CollapsingHeader("Edit Mode", ImGuiTreeNodeFlags_DefaultOpen)) {
 		Indent();
 		RadioButton("Fluid", &editMode, 0); SameLine();
-		HelpMarker("Hold left clicked to spawn selected fluid (hold shift to speed it up).\nHold right click to remove fluid."); SameLine();
+		HelpMarker("Hold left click to spawn selected fluid.\nHold right click to remove fluid."); SameLine();
 		RadioButton("Geometry", &editMode, 1); SameLine();
-		HelpMarker("Left click to start creation a line, right click to cancel.\nRight click existing line to delete.\nLines snap together during creation at each end point.");
+		HelpMarker("Left click to start creating a line, right click to cancel.\nRight click existing line to delete.\nLines snap together during creation at each end point.");
 
 		Separator();
 
 		if (editMode == 0) {
 			//show options for fluid creation
 			Text("Control Settings");
-			DragInt("Spawn Speed", &spawnSpeed, 0.05f, 0.1f, 10.0f, "%d Particles", ImGuiSliderFlags_AlwaysClamp);
+			DragInt("Spawn Speed", &spawnSpeed, 0.05f, 1, 10, "%d Particles", ImGuiSliderFlags_AlwaysClamp);
+			DragFloat("Spawn Interval", &spawnInterval, 0.05f, 0.01f, 1.0f, "%2.2f Seconds", ImGuiSliderFlags_AlwaysClamp);
 			DragFloat("Spawn Radius", &spawnRadius, 0.05f, 0.1f, 100.0f, "%2.2f", ImGuiSliderFlags_AlwaysClamp);
 			DragFloat("Delete Radius", &deleteRadius, 0.05f, 0.1f, 100.0f, "%2.2f", ImGuiSliderFlags_AlwaysClamp);
 
@@ -94,7 +97,7 @@ void GUI::update() {
 				Indent();
 				InputFloat2("Location", &damPosition[0]); SameLine();
 				HelpMarker("Centre is (640, 360) Values above (1280, 720) and below (0, 0) may cause issues.");
-				DragInt("Size", &damSize, 0.05f, 0.1f, 30.0f, "%d Square of Particles", ImGuiSliderFlags_AlwaysClamp);
+				DragInt("Size", &damSize, 0.05f, 1, 30, "%d Square of Particles", ImGuiSliderFlags_AlwaysClamp);
 				if (Button("Spawn")) {
 					particleSystem->spawnDam(damSize, selectedFluid, damPosition.x, damPosition.y);
 				}
@@ -121,7 +124,10 @@ void GUI::update() {
 						if (BeginPopup(std::to_string(i).c_str()))
 						{
 							std::string txt = "Edit " + fluidNames[i] + "\'s properties";
-							Text(txt.c_str());
+							Text(txt.c_str()); SameLine();
+							const char* warning = "High mass and high viscosities can cause chaos, experiment to find ideal values.\n"
+								"Units are not necessarily physically accurate and are mostly included for educational value.";
+							HelpMarker(warning);
 
 							//edit name of fluid
 							static char str0[32] = "";
@@ -135,8 +141,18 @@ void GUI::update() {
 							bool needToUpdate = false;
 
 							//numeric properties
-							if (DragFloat("Mass", &pp.mass, 0.05f, 0.1f, 10.0f, "%2.2f", ImGuiSliderFlags_AlwaysClamp)) needToUpdate = true;
-							if (DragFloat("Viscosity", &pp.viscosity, 0.05f, 0.1f, 20.0f, "%2.2f", ImGuiSliderFlags_AlwaysClamp)) needToUpdate = true;
+							float displayedMass = pp.mass * 1000.0f;
+							if (DragFloat("Density", &displayedMass, 5.0f, 100.0f, 20000.0f, "%2.2f kg/m^3", ImGuiSliderFlags_AlwaysClamp)) {
+								pp.mass = displayedMass / 1000.0f;
+								needToUpdate = true;
+							}
+							//if (DragFloat("Density", &pp.mass, 0.05f, 0.01f, 20.0f, "%2.2f * 10^2 kg/m^3", ImGuiSliderFlags_AlwaysClamp)) needToUpdate = true;
+							float displayedViscosity = 100.0f * pp.viscosity;
+							if (DragFloat("Viscosity", &displayedViscosity, 1.0f, 1.0f, 5000.0f, "%2.2f mPa-s", ImGuiSliderFlags_AlwaysClamp)) {
+								pp.viscosity = displayedViscosity / 100.0f;
+								needToUpdate = true;
+							}
+							//if (DragFloat("Viscosity", &pp.viscosity, 0.05f, 0.01f, 100.0f, "%2.2f * 10^2 mPa-s", ImGuiSliderFlags_AlwaysClamp)) needToUpdate = true;
 							pp.restDensity = constants::REST_DENSITY * pp.mass;
 
 							//color
@@ -144,13 +160,24 @@ void GUI::update() {
 							pp.color = glm::vec4(color.x, color.y, color.z, color.w);
 
 							//diseased, conversion to bool OK
-							if (Checkbox("Diseased", (bool*)&pp.diseased)) needToUpdate = true;
+							bool updateDiseased = false;
+							if (Checkbox("Diseased", (bool*)&pp.diseased)) {
+								needToUpdate = true;
+								updateDiseased = true;
+							}
+
+							//warning about properties
+							if (pp.mass * pp.viscosity > 25) {
+								TextColored(ImVec4(1, 0, 0, 1), "WARNING: Fluid properties may cause chaos,\nhigh values for mass and viscosity are not recommended.");
+							}
 
 							//update to gpu if necessary
 							if (needToUpdate) {
 								particleSystem->particleProperties[i] = pp;
 								particleSystem->updateProperties();
 							}
+
+							if (updateDiseased) particleSystem->updateNumOfDiseased();
 
 							EndPopup();
 						}
@@ -163,6 +190,8 @@ void GUI::update() {
 		else {
 			//show options for geometry (select curved or line mode)
 			Text("Geometry Creation Settings");
+			Checkbox("Snap To Vertex", &lineSnap); SameLine();
+			HelpMarker("When creating a new line, if this setting is enabled, the start of the new line will snap to a nearby existing line vertex.");
 		}
 		Unindent();
 	}
@@ -172,6 +201,15 @@ void GUI::update() {
 		Indent();
 		bool needToUpdate = false;
 		if (Checkbox("Gravity", &particleSystem->gravityEnabled)) needToUpdate = true;
+		Indent();
+		if (DragFloat("Gravity Value", &gravity, 0.05f, -10.0f, 10.0f, "%2.2f m/s^2", ImGuiSliderFlags_AlwaysClamp)) {
+			particleSystem->updateGravity();
+		}
+		SameLine();
+		HelpMarker("You can click and drag the value,\nor double click to type in your own.");
+		Unindent();
+
+
 		if (Checkbox("Wind", &particleSystem->windEnabled)) needToUpdate = true;
 		Indent();
 		if (InputFloat2("Wind Centre", &particleSystem->windCentre[0])) needToUpdate = true;
@@ -181,13 +219,28 @@ void GUI::update() {
 		Unindent();
 	}
 
+	//disease controls
+	if (CollapsingHeader("Disease", ImGuiTreeNodeFlags_DefaultOpen)) {
+		Text("Physical Distrubtion: %2.2f", diseaseDistribution); SameLine();
+		HelpMarker("Low values indicate that the diseased particles are located in one area, high values indicate that they are spread apart throughout the scene.");
+		if (Button("Update Physical Distribution")) {
+			particleSystem->measureDiseaseDistribution();
+		}
+	}
+
 	//scene controls (delete all particles, geometry, save, load)
 	if (CollapsingHeader("Scene Controls", ImGuiTreeNodeFlags_DefaultOpen)) {
 		Indent();
 		if (Button("Reset Particles")) particleSystem->resetParticles();
 		if (Button("Reset Geometry")) particleSystem->resetGeometry();
-		if (Button("Save State")) particleSystem->saveState();
-		if (Button("Load State")) particleSystem->loadState();
+		if (Button("Save State")) {
+			particleSystem->saveState();
+			savedFluidNames = fluidNames;
+		}
+		if (Button("Load State")) {
+			particleSystem->loadState();
+			fluidNames = savedFluidNames;
+		}
 		Unindent();
 	}
 
@@ -196,21 +249,23 @@ void GUI::update() {
 		Indent();
 
 		//put a reset button here
-		if (Button("Reset")) {
-			gravity = constants::GRAVITY;
-			particleSystem->updateGravity();
-		}
+		//if (Button("Reset")) {
+		//	gravity = constants::GRAVITY;
+		//	particleSystem->updateGravity();
+		//}
+
+		RadioButton("Draw Fluids", &particleSystem->drawMode, 0); SameLine();
+		RadioButton("Draw Particles", &particleSystem->drawMode, 1);
 
 		//mouse interaction(blowing) enable
 		
 		//InputFloat("Gravity", &gravity, 0.0f, 0.0f, "%2.2f m/s^2"); SameLine();
 		//SliderFloat("Gravity", &gravity, -10.0f, 10.0f, "%2.2f m/s^2");
-		if (DragFloat("Gravity", &gravity, 0.05f, -10.0f, 10.0f, "%2.2f m/s^2", ImGuiSliderFlags_AlwaysClamp)) {
-			particleSystem->updateGravity();
-		}
 		
-		SameLine();
-		HelpMarker("You can click and drag the value,\nor double click to type in your own.");
+
+		Checkbox("Performance Mode", &particleSystem->performanceMode); SameLine();
+		HelpMarker("Lock the FPS to 30 for a smoother experience on lowered end hardward.");
+		Checkbox("Pause", &pause);
 
 		//change geometry and bounds damping
 
@@ -219,13 +274,16 @@ void GUI::update() {
 		Unindent();
 	}
 
-	//particle types
+	//visual settings
+	if (CollapsingHeader("Visual Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
+		if (ColorEdit4("Background", (float*)&backgroundColor, NULL)) {
+			glClearColor(backgroundColor.x, backgroundColor.y, backgroundColor.z, backgroundColor.w);
+		}
+		if (ColorEdit4("Geometry", (float*)&geometryColor, NULL)) {
+			particleSystem->updateLineColor();
+		}
+	}
 
-	//visual settings (colors of geometry and background)
-
-	//simulation metrics
-
-	//SameLine(); HelpMarker("Choose what will be created (and destroyed) when you click inside the simulation");
 	End();
 }
 

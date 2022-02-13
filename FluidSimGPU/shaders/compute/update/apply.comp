@@ -100,6 +100,8 @@ void main() {
 //
 //	p.velocity /= deltaTime;
 
+	//end of cfl
+
 	//calculate and apply viscosity
 	vec2 viscosity = vec2(0.0, 0.0);
 
@@ -151,7 +153,8 @@ void main() {
 		//without this check the collision would be between particle and infinite line
 		vec2 d = l.a + ad;
 		float dotProduct = dot(l.ab, ad);
-		if (dotProduct < 0 || dotProduct > l.lengthAb * l.lengthAb) continue;
+		//add particle radius to both ends of this check, see dot product definition with cos for explanation
+		if (dotProduct < -l.lengthAb * particleRadius || dotProduct > l.lengthAb * (l.lengthAb + particleRadius)) continue;
 
 		//check for collision
 		vec2 dc = c - d;

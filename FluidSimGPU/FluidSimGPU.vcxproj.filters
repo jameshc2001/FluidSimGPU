@@ -121,5 +121,7 @@
     <None Include="shaders\compute\utility\remove.comp" />
     <None Include="shaders\circleFragment.frag" />
     <None Include="shaders\circleVertex.vert" />
+    <None Include="shaders\compute\utility\diseased.comp" />
+    <None Include="shaders\compute\utility\measure.comp" />
   </ItemGroup>
 </Project>

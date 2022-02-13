@@ -78,7 +78,6 @@
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LinkIncremental>true</LinkIncremental>
     <IncludePath>C:\vclib\OpenGL\includes;$(IncludePath)</IncludePath>
     <LibraryPath>C:\vclib\OpenGL\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
@@ -192,6 +191,8 @@
     <None Include="shaders\compute\render\genVertices.comp" />
     <None Include="shaders\compute\update\improve.comp" />
     <None Include="shaders\compute\update\predict.comp" />
+    <None Include="shaders\compute\utility\diseased.comp" />
+    <None Include="shaders\compute\utility\measure.comp" />
     <None Include="shaders\compute\utility\remove.comp" />
     <None Include="shaders\lineFragment.frag" />
     <None Include="shaders\lineVertex.vert" />

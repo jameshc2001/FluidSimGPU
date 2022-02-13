@@ -32,17 +32,10 @@ float frametime = 0;
 float accumulator = 0;
 float timeAtLastSpawn = 0;
 
-bool pause = false;
+//bool pause = false;
 
-bool dKeyDown = false;
-bool fKeyDown = false;
-bool rKeyDown = false;
-bool iKeyDown = false;
-bool oKeyDown = false;
-bool uKeyDown = false;
-bool pKeyDown = false;
-bool wKeyDown = false;
-bool aKeyDown = false;
+bool hKeyDown = false;
+bool showGui = true;
 
 bool leftMouseJustDown = false;
 bool leftMouseDown = false;
@@ -174,77 +167,16 @@ void renderCircle(glm::vec2 position, float radius) {
 
 //current time is used for timing particle spawning
 void handleInput(float currentTime) {
-	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS && !dKeyDown) {
-		particleSystem.spawnDam(30, 0, SCREEN_WIDTH / 2 - 200, SCREEN_HEIGHT / 2);
-		dKeyDown = true;
+	//check if Dear ImGUI is using the mouse, also works for keyboard
+	if (gui.hasMouse()) return;
+
+	//keyboard input
+	if (glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS && !hKeyDown) {
+		showGui = !showGui;
+		hKeyDown = true;
 	}
-	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS && !aKeyDown) {
-		aKeyDown = true;
-		pause = !pause;
-	}
-	if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS && !fKeyDown) {
-		particleSystem.spawnDam(30, 1, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
-		fKeyDown = true;
-	}
-	if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS && !rKeyDown) {
-		particleSystem.resetParticles();
-		rKeyDown = true;
-	}
-	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS && !wKeyDown) {
-		particleSystem.addLine(glm::vec2(200, 500), glm::vec2(600, 100), false);
-		particleSystem.addLine(glm::vec2(600, 100), glm::vec2(1000, 300), true);
-		wKeyDown = true;
-	}
-	if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS && !iKeyDown) {
-		particleSystem.drawParticles = !particleSystem.drawParticles;
-		iKeyDown = true;
-	}
-	if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS && !oKeyDown) {
-		particleSystem.drawMs = !particleSystem.drawMs;
-		oKeyDown = true;
-	}
-	if (glfwGetKey(window, GLFW_KEY_U) == GLFW_PRESS && !uKeyDown) {
-		particleSystem.calcColor = !particleSystem.calcColor;
-		uKeyDown = true;
-	}
-	if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS && !pKeyDown) {
-		particleSystem.performanceMode = !particleSystem.performanceMode;
-		if (particleSystem.performanceMode) {
-			particleSystem.wait = false;
-			frametime = 1.0f / 30.0f;
-		}
-		else {
-			frametime = 0.0f;
-		}
-		accumulator = 0.0f;
-		pKeyDown = true;
-	}
-	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_RELEASE) {
-		dKeyDown = false;
-	}
-	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_RELEASE) {
-		aKeyDown = false;
-	}
-	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_RELEASE) {
-		wKeyDown = false;
-	}
-	if (glfwGetKey(window, GLFW_KEY_F) == GLFW_RELEASE) {
-		fKeyDown = false;
-	}
-	if (glfwGetKey(window, GLFW_KEY_R) == GLFW_RELEASE) {
-		rKeyDown = false;
-	}
-	if (glfwGetKey(window, GLFW_KEY_I) == GLFW_RELEASE) {
-		iKeyDown = false;
-	}
-	if (glfwGetKey(window, GLFW_KEY_O) == GLFW_RELEASE) {
-		oKeyDown = false;
-	}
-	if (glfwGetKey(window, GLFW_KEY_U) == GLFW_RELEASE) {
-		uKeyDown = false;
-	}
-	if (glfwGetKey(window, GLFW_KEY_P) == GLFW_RELEASE) {
-		pKeyDown = false;
+	if (glfwGetKey(window, GLFW_KEY_H) == GLFW_RELEASE) {
+		hKeyDown = false;
 	}
 
 	//handle mouse input
@@ -271,9 +203,6 @@ void handleInput(float currentTime) {
 		rightMouseDown = false;
 	}
 
-	//check if Dear ImGUI is using the mouse
-	if (gui.hasMouse()) return;
-
 	//first calculate cursor position
 	double x, y;
 	glfwGetCursorPos(window, &x, &y);
@@ -290,18 +219,17 @@ void handleInput(float currentTime) {
 		particleSystem.setDeleteLine(mousePos);
 	}
 
-	//draw line being build
-	if (buildingLine) {
-		particleSystem.renderLine(lineStart, mousePos);
-	}
-
 	if (leftMouseDown) {
-		if (guiVariables::editMode == 0) { //currently in fluid editing mode
+		if (guiVariables::editMode == 0 && !guiVariables::pause) { //currently in fluid editing mode
+
+			if (leftMouseJustDown) { //if mouse just pressed then we want to spawn in particles NOW!!!!
+				timeAtLastSpawn = currentTime - guiVariables::spawnInterval;
+			}
 
 			//figure out if enough time has passed to spawn another particle
 			float timeSinceLastSpawn = currentTime - timeAtLastSpawn; //makes this framerate independent
 
-			if (timeSinceLastSpawn >= SPAWN_INTERVAL) {
+			while (timeSinceLastSpawn >= guiVariables::spawnInterval) {
 				timeAtLastSpawn = currentTime;
 				std::vector<Particle> particlesToAdd;
 				for (int i = 0; i < guiVariables::spawnSpeed; i++) {
@@ -310,6 +238,7 @@ void handleInput(float currentTime) {
 					particlesToAdd.push_back(Particle(pos.x, pos.y, guiVariables::selectedFluid));
 				}
 				particleSystem.addParticles(&particlesToAdd);
+				timeSinceLastSpawn -= guiVariables::spawnInterval;
 			}
 		}
 	}
@@ -319,19 +248,28 @@ void handleInput(float currentTime) {
 			if (!buildingLine) { //start building a line
 				buildingLine = true;
 				lineStart = mousePos;
-				std::cout << "line has started being built" << std::endl;
+
+				if (guiVariables::lineSnap) {
+					glm::vec2 nearest = particleSystem.getNearestVertex(mousePos);
+					if (nearest.x != -1) lineStart = nearest;
+				}
 			}
 			else { //complete the line that is being built
 				buildingLine = false;
 				lineEnd = mousePos;
+
+				if (guiVariables::lineSnap) {
+					glm::vec2 nearest = particleSystem.getNearestVertex(mousePos);
+					if (nearest.x != -1) lineEnd = nearest;
+				}
+
 				particleSystem.addLine(lineStart, lineEnd, true);
-				std::cout << "line has been built" << std::endl;
 			}
 		}
 	}
 
 	if (rightMouseDown) {
-		if (guiVariables::editMode == 0) {
+		if (guiVariables::editMode == 0 && !guiVariables::pause) {
 			particleSystem.removeParticles(mousePos, guiVariables::deleteRadius);
 			renderCircle(mousePos, guiVariables::deleteRadius);
 		}
@@ -366,7 +304,7 @@ int main() {
 	while (!glfwWindowShouldClose(window)) {
 		
 		//get time since last frame
-		float currentTime = glfwGetTime();
+		float currentTime = (float)glfwGetTime();
 		deltaTime = currentTime - prevTime;
 		prevTime = currentTime;
 		accumulator += deltaTime;
@@ -377,18 +315,20 @@ int main() {
 		handleInput(currentTime);
 
 		//sim updating here
-		if (!pause) particleSystem.update(deltaTime);
+		if (!guiVariables::pause) particleSystem.update(deltaTime);
 
 		//std::cout << accumulator << "   " << frametime << std::endl;
 		if (accumulator >= frametime) {
 			//update gui
-			gui.update();
+			if (showGui) gui.update();
 
 			//rendering here
 			//glClear(GL_COLOR_BUFFER_BIT);
 			//if (rightMouseDown) renderCircle();
 			particleSystem.render();
-			gui.render(); //put ui ontop of particles
+			//draw line being build
+			if (buildingLine) particleSystem.renderLine(lineStart, mousePos);
+			if (showGui) gui.render(); //put ui ontop of particles
 
 			//display new frame
 			glfwSwapBuffers(window);

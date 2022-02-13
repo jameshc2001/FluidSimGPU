@@ -29,13 +29,23 @@ struct VertexData {
 	glm::vec4 color;
 };
 
-struct colorData {
+struct colorData { //can i remove this?
 	glm::vec2 position;
 	float value;
 	float density;
 	glm::vec2 velocity;
 	glm::vec2 rg;
 	glm::vec2 ba;
+};
+
+struct SaveState {
+	int savedNumOfLines;
+	std::array<Line, MAX_LINES> savedLines;
+	std::vector<int> savedLineGrid[constants::L_X_CELLS][constants::L_Y_CELLS];
+	std::array<ParticleProperties, MAX_PARTICLE_TYPES> savedProperties;
+	int savedNumOfParticles;
+	int savedNumOfDiseased;
+	std::array<Particle, MAX_PARTICLES> savedParticles;
 };
 
 class ParticleSystem {
@@ -49,6 +59,8 @@ private:
 	Shader colorShader;
 	Shader genMSVerticesShader;
 	Shader removeShader;
+	Shader diseasedShader;
+	Shader measureShader;
 
 	unsigned int particleSSBO;
 	unsigned int gridCellSSBO;
@@ -83,6 +95,8 @@ private:
 	Shader sortShader;
 
 	int particles = 0;
+	int particlesToRender = 0;
+	int diseasedParticles = 0;
 	int numLines = 0;
 	float accumulator = 0;
 	std::array<Line, constants::MAX_LINES> lines;
@@ -99,12 +113,15 @@ private:
 	void setLineColor(int line, glm::vec3 color);
 	void updateLinesGPU();
 
+	SaveState state;
+
 public:
 	bool drawParticles = false;
 	bool drawMs = true;
 	bool calcColor = true;
 	bool performanceMode = false;
 	int wait = false;
+	int drawMode = 0;
 
 	//vector field settings
 	bool gravityEnabled = true;
@@ -126,16 +143,22 @@ public:
 	void loadState();
 
 	void updateProperties();
+	void updateNumOfDiseased();
 	void updateGravity();
+	void updateLineColor() { updateLinesGPU(); } //faster way of doing this?
+	void setVectorField();
+	void measureDiseaseDistribution();
 
+	void addLineFromMouse(glm::vec2 v1, glm::vec2 v2); //need to add bits to each end
 	void addLine(glm::vec2 v1, glm::vec2 v2, bool updateGPU);
 	void removeLine(glm::vec2 position);
+	glm::vec2 getNearestVertex(glm::vec2 position); //return position of nearest line vertex (if close enough)
 	int getParticles() { return particles; }
+	int getDiseased() { return diseasedParticles; }
 
 	void setDeleteLine(glm::vec2 position); //change its color to red
 	void renderLine(glm::vec2 a, glm::vec2 b);
 
-	void setVectorField();
 	void initialise();
 	void update(float deltaTime); //decide vertex stuff
 	void render();

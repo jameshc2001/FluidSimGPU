@@ -4,19 +4,11 @@ using namespace constants;
 
 ParticleSystem::ParticleSystem() {
 	//create basic type
-	particleProperties[0] = ParticleProperties(1, 0.1f, 0, glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
-	particleProperties[1] = ParticleProperties(2, 5.0f, 0, glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+	particleProperties[0] = ParticleProperties(1, 0.01f, 0, glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
+	particleProperties[1] = ParticleProperties(0.87f, 0.34f, 0, glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
 	for (int i = 2; i < MAX_PARTICLE_TYPES; i++) {
 		particleProperties[i] = ParticleProperties(1, 1.0f, 0, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
 	}
-}
-
-void ParticleSystem::setVectorField() {
-	predictShader.use();
-	predictShader.setBool("gravityEnabled", gravityEnabled);
-	predictShader.setBool("windEnabled", windEnabled);
-	predictShader.setVec2("centre", windCentre);
-	predictShader.setVec2("strength", windStrength);
 }
 
 void ParticleSystem::initialise() {
@@ -57,6 +49,13 @@ void ParticleSystem::initialise() {
 
 	//remove particles shader
 	removeShader.loadCompute("shaders/compute/utility/remove.comp");
+
+	//counts diseased particles shader
+	diseasedShader.loadCompute("shaders/compute/utility/diseased.comp");
+
+	//measures physical distribution of diseased particles
+	measureShader.loadCompute("shaders/compute/utility/measure.comp");
+
 
 	applyShader.use();
 	applyShader.setFloat("lineGridRes", LINE_GRID_RESOLUTION);
@@ -181,12 +180,15 @@ void ParticleSystem::initialise() {
 	//set size of lineSSBO
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, lineSSBO);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Line) * MAX_LINES + sizeof(int) * L_NUM_CELLS + sizeof(int) * 100000, NULL, GL_STATIC_DRAW); //dont know how big so make it super big
+
+	saveState();
 }
 
 void ParticleSystem::addParticles(std::vector<Particle>* particlesToAdd) {
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, particleSSBO);
 	glBufferSubData(GL_SHADER_STORAGE_BUFFER, particles * sizeof(Particle), particlesToAdd->size() * sizeof(Particle), &(*particlesToAdd)[0]);
-	particles += particlesToAdd->size();
+	particles += (int)particlesToAdd->size();
+	if (particleProperties[(*particlesToAdd)[0].properties].diseased) diseasedParticles += (int)particlesToAdd->size();
 	glBindBuffer(GL_UNIFORM_BUFFER, simUBO);
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(int), &particles);
 	//std::cout << "\n" << particles << "\n" << std::endl;
@@ -196,17 +198,22 @@ void ParticleSystem::addParticles(std::vector<Particle>* particlesToAdd) {
 void ParticleSystem::removeParticles(glm::vec2 position, float radius) {
 	removeShader.use();
 
+	//grid buffer helps us delete particles and keep track of deletion of diseased particles
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, gridCellSSBO);
-	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(int), &particles);
+	int data[] = { particles, 0 };
+	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(int) * 2, &data[0]);
 
 	removeShader.setFloat("deleteRadius", radius);
 	removeShader.setVec2("deletePosition", position);
-	glDispatchCompute(ceil((float)particles / 1024.0f), 1, 1);
+	glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1);
 
-	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 	glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(int), &particles);
 	glBindBuffer(GL_UNIFORM_BUFFER, simUBO);
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(int), &particles);
+
+	int diseasedDeleted;
+	glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, sizeof(int), sizeof(int), &diseasedDeleted);
+	diseasedParticles -= diseasedDeleted;
 }
 
 void ParticleSystem::spawnDam(int n, int properties, float x, float y) {
@@ -222,26 +229,99 @@ void ParticleSystem::spawnDam(int n, int properties, float x, float y) {
 
 void ParticleSystem::resetParticles() {
 	particles = 0;
+	diseasedParticles = 0;
 	glBindBuffer(GL_UNIFORM_BUFFER, simUBO);
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(int), &particles);
-	std::cout << "\n" << particles << "\n" << std::endl;
+	//also need to clear visual buffer
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, msSSBO);
+	GLint zero = 0;
+	glClearBufferData(GL_SHADER_STORAGE_BUFFER, GL_R32I, GL_RED, GL_INT, &zero);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, pointSSBO);
+	glClearBufferData(GL_SHADER_STORAGE_BUFFER, GL_R32I, GL_RED, GL_INT, &zero);
 }
 
 void ParticleSystem::resetGeometry() {
 	if (numLines != 0) {
+		//clear lineGrid, must be a faster way than this
+		for (int i = 0; i < L_X_CELLS; i++) {
+			for (int j = 0; j < L_Y_CELLS; j++) {
+				lineGrid[i][j].clear();
+			}
+		}
+
 		numLines = 0;
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, lineSSBO);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Line) * MAX_LINES + sizeof(int) * L_NUM_CELLS + sizeof(int) * 100000, NULL, GL_STATIC_DRAW); //dont know how big so make it super big
+		GLint zero = 0;
+		glClearBufferData(GL_SHADER_STORAGE_BUFFER, GL_R32I, GL_RED, GL_INT, &zero);
 	}
 }
 
-void ParticleSystem::saveState() {} //TODO
-void ParticleSystem::loadState() {} //TODO
+void ParticleSystem::saveState() {
+	state.savedNumOfLines = numLines;
+	state.savedLines = lines;
+
+	for (int x = 0; x < L_X_CELLS; x++) {
+		for (int y = 0; y < L_Y_CELLS; y++) {
+			state.savedLineGrid[x][y] = lineGrid[x][y];
+		}
+	}
+
+	state.savedProperties = particleProperties;
+	state.savedNumOfParticles = particles;
+	state.savedNumOfDiseased = diseasedParticles;
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, particleSSBO);
+	glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, MAX_PARTICLES * sizeof(Particle), &state.savedParticles[0]);
+}
+
+void ParticleSystem::loadState() {
+	numLines = state.savedNumOfLines;
+	lines = state.savedLines;
+
+	for (int x = 0; x < L_X_CELLS; x++) {
+		for (int y = 0; y < L_Y_CELLS; y++) {
+			lineGrid[x][y] = state.savedLineGrid[x][y];
+		}
+	}
+
+	particleProperties = state.savedProperties;
+	particles = state.savedNumOfParticles;
+	diseasedParticles = state.savedNumOfDiseased;
+	glBindBuffer(GL_UNIFORM_BUFFER, simUBO);
+	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(int), &particles);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, particleSSBO);
+	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, MAX_PARTICLES * sizeof(Particle), &state.savedParticles[0]);
+
+	updateProperties();
+
+	if (numLines != 0) {
+		updateLinesGPU();
+	}
+	else {
+		//clear buffer
+		glBindBuffer(GL_ARRAY_BUFFER, lineVBO);
+		GLint zero = 0;
+		glClearBufferData(GL_ARRAY_BUFFER, GL_R32I, GL_RED, GL_INT, &zero);
+		//also need to clear shader buffer
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, lineSSBO);
+		glClearBufferData(GL_SHADER_STORAGE_BUFFER, GL_R32I, GL_RED, GL_INT, &zero);
+	}
+}
 
 //send particle properties to GPU, called by gui
 void ParticleSystem::updateProperties() {
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, propertiesSSBO);
 	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(ParticleProperties) * particleProperties.size(), &particleProperties[0]);
+}
+
+void ParticleSystem::updateNumOfDiseased() {
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, gridCellSSBO);
+	int data = 0;
+	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(int), &data);
+
+	diseasedShader.use();
+	glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1);
+
+	glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(int), &diseasedParticles);
 }
 
 void ParticleSystem::updateGravity() {
@@ -250,18 +330,55 @@ void ParticleSystem::updateGravity() {
 	glBufferSubData(GL_UNIFORM_BUFFER, sizeof(int) * simInts.size() + sizeof(float) * 11, sizeof(float), &g);
 }
 
+void ParticleSystem::setVectorField() {
+	predictShader.use();
+	predictShader.setBool("gravityEnabled", gravityEnabled);
+	predictShader.setBool("windEnabled", windEnabled);
+	predictShader.setVec2("centre", windCentre);
+	predictShader.setVec2("strength", windStrength);
+}
+
+void ParticleSystem::measureDiseaseDistribution() {
+	//calculate distance from each disease particle to every other disease particle
+	//divide this by the total number of distances calculated
+	//O(n^2) sadly, atleast we can do it in parallel on the GPU
+
+	//first element used for total distance, second used for counting number of distances
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, gridCellSSBO);
+	int data[] = { 0, 0 };
+	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(int) * 2, &data[0]);
+
+	//call shader
+	measureShader.use();
+	glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1);
+
+	//calculate result
+	glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(int) * 2, &data[0]); //data[0] right?
+	if (data[1] == 0) guiVariables::diseaseDistribution = 0; //avoid divide by zero
+	else guiVariables::diseaseDistribution = abs(((float)data[0] / 100.0f) / (float)data[1]);
+}
+
+void ParticleSystem::addLineFromMouse(glm::vec2 v1, glm::vec2 v2) {
+	glm::vec2 dir = v2 - v1;
+	dir = glm::normalize(dir);
+	v1 -= constants::PARTICLE_RADIUS * dir;
+	v2 += constants::PARTICLE_RADIUS * dir;
+	addLine(v1, v2, true);
+}
+
 void ParticleSystem::addLine(glm::vec2 v1, glm::vec2 v2, bool updateGPU) {
 	lines[numLines] = Line(v1, v2);
 	int l = numLines;
 
 	//now do bresenhams line draw algorithm to determine which cells could have collisions with the line
 	//first convert to grid coordinates
-	int x0 = floor(v1.x / LINE_GRID_RESOLUTION);
-	int y0 = floor(v1.y / LINE_GRID_RESOLUTION);
-	int x1 = floor(v2.x / LINE_GRID_RESOLUTION);
-	int y1 = floor(v2.y / LINE_GRID_RESOLUTION);
+	int x0 = (int)floor(v1.x / LINE_GRID_RESOLUTION);
+	int y0 = (int)floor(v1.y / LINE_GRID_RESOLUTION);
+	int x1 = (int)floor(v2.x / LINE_GRID_RESOLUTION);
+	int y1 = (int)floor(v2.y / LINE_GRID_RESOLUTION);
 
-	//use Alois Zingl's version of bresenham line drawing algorithm (from easy filter REFERENCE PROPERLY)
+	//use Alois Zingl's version of the bresenham line drawing algorithm from Easy Filter:
+	//http://members.chello.at/easyfilter/bresenham.html
 	int dx = abs(x1 - x0);
 	int dy = -abs(y1 - y0);
 	int sx = x0 < x1 ? 1 : -1;
@@ -304,8 +421,8 @@ void ParticleSystem::addLine(glm::vec2 v1, glm::vec2 v2, bool updateGPU) {
 
 void ParticleSystem::removeLine(glm::vec2 position) {
 	//get grid coordinates of mouse position
-	int x = floor(position.x / LINE_GRID_RESOLUTION);
-	int y = floor(position.y / LINE_GRID_RESOLUTION);
+	int x = (int)floor(position.x / LINE_GRID_RESOLUTION);
+	int y = (int)floor(position.y / LINE_GRID_RESOLUTION);
 
 	if (lineGrid[x][y].size() == 0) return; //no line at position
 
@@ -353,16 +470,28 @@ void ParticleSystem::removeLine(glm::vec2 position) {
 	updateLinesGPU();
 }
 
+glm::vec2 ParticleSystem::getNearestVertex(glm::vec2 position) {
+	//get grid coordinates of mouse position
+	int x = (int)floor(position.x / LINE_GRID_RESOLUTION);
+	int y = (int)floor(position.y / LINE_GRID_RESOLUTION);
+
+	if (lineGrid[x][y].size() == 0) return glm::vec2(-1, -1);
+
+	Line l = lines[lineGrid[x][y][0]];
+	if (glm::distance(l.a, position) < glm::distance(l.b, position)) return l.a;
+	else return l.b;
+}
+
 void ParticleSystem::setDeleteLine(glm::vec2 position) {
 	//get grid coordinates of mouse position
-	int x = floor(position.x / LINE_GRID_RESOLUTION);
-	int y = floor(position.y / LINE_GRID_RESOLUTION);
+	int x = (int)floor(position.x / LINE_GRID_RESOLUTION);
+	int y = (int)floor(position.y / LINE_GRID_RESOLUTION);
 
 	//check if in bounds (mouse can do weird things) or if line selected
 	if (x < 0 || y < 0 || x >= L_X_CELLS || y >= L_Y_CELLS || lineGrid[x][y].size() == 0) {
 		//set prev line back
 		if (prevDeleteLine != -1) {
-			setLineColor(prevDeleteLine, glm::vec3(0, 0, 0));
+			setLineColor(prevDeleteLine, glm::vec3(guiVariables::geometryColor.x, guiVariables::geometryColor.y, guiVariables::geometryColor.z));
 			prevDeleteLine = -1;
 		}
 		return;
@@ -372,7 +501,7 @@ void ParticleSystem::setDeleteLine(glm::vec2 position) {
 
 	//check if its the same line as previous, setting previous back to black if necessary
 	if (lineToRender != prevDeleteLine && prevDeleteLine != -1) {
-		setLineColor(prevDeleteLine, glm::vec3(0, 0, 0));
+		setLineColor(prevDeleteLine, glm::vec3(guiVariables::geometryColor.x, guiVariables::geometryColor.y, guiVariables::geometryColor.z));
 		prevDeleteLine = -1;
 	}
 
@@ -405,9 +534,24 @@ void ParticleSystem::renderLine(glm::vec2 a, glm::vec2 b) {
 void ParticleSystem::updateLinesGPU() {
 	//first generate vertex data
 	std::vector<LineVertexData> linevd;
-	glm::vec3 color = glm::vec3(0, 0, 0);
+	glm::vec3 color = glm::vec3(guiVariables::geometryColor.x, guiVariables::geometryColor.y, guiVariables::geometryColor.z);
 	for (int i = 0; i < numLines; i++) {
 		Line* line = &lines[i];
+
+		//glm::vec2 a = line->a;
+		//glm::vec2 b = line->b;
+
+		////remove added part
+		//glm::vec2 dir = b - a;
+		//dir = glm::normalize(dir);
+		//a += constants::PARTICLE_RADIUS * dir;
+		//b -= constants::PARTICLE_RADIUS * dir;
+
+		//LineVertexData vd = { a, color };
+		//linevd.push_back(vd);
+		//vd = { b, color };
+		//linevd.push_back(vd);
+
 		LineVertexData vd = { line->a, color };
 		linevd.push_back(vd);
 		vd = { line->b, color };
@@ -424,7 +568,7 @@ void ParticleSystem::updateLinesGPU() {
 	for (int y = 0; y < L_Y_CELLS; y++) { //loop through y before x, super important!
 		for (int x = 0; x < L_X_CELLS; x++) {
 			int cellID = y * L_X_CELLS + x;
-			lineCellStart.push_back(lineIndexes.size()); //current cell starts here
+			lineCellStart.push_back((int)lineIndexes.size()); //current cell starts here
 			for (int line : lineGrid[x][y]) {
 				lineIndexes.push_back(line);
 			}
@@ -445,7 +589,7 @@ void ParticleSystem::updateGridGPU() {
 
 	//calculate number of particles in each cell and store each particles individual offset for later
 	prepareShader.use();
-	glDispatchCompute(ceil((float)particles / 1024.0f), 1, 1); //generate counters and copy particles over
+	glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1); //generate counters and copy particles over
 
 	//gridCellSSBO still binded. Here we copy counters over to 2nd section of gridData array
 	glCopyBufferSubData(GL_SHADER_STORAGE_BUFFER, GL_SHADER_STORAGE_BUFFER, 0, sizeof(int) * P_NUM_CELLS, sizeof(int) * P_NUM_CELLS);
@@ -455,12 +599,12 @@ void ParticleSystem::updateGridGPU() {
 	prefixIterationShader.use();
 	prefixIterationShader.setInt("finalPrefixIteration", 0);
 	int flag = 1;
-	int limit = ceil(log2(P_NUM_CELLS));
+	int limit = (int)ceil(log2(P_NUM_CELLS));
 	for (int i = 0; i < limit; i++) {
 		prefixIterationShader.setInt("i", i);
 		prefixIterationShader.setInt("flag", flag);
 		if (i == limit - 1) prefixIterationShader.setInt("finalPrefixIteration", 1);
-		glDispatchCompute(ceil((float)P_NUM_CELLS / 1024.0f), 1, 1);
+		glDispatchCompute((int)ceil((float)P_NUM_CELLS / 1024.0f), 1, 1);
 		if (flag == 0) flag = 1;
 		else flag = 0;
 	}
@@ -468,24 +612,20 @@ void ParticleSystem::updateGridGPU() {
 	//using the exclusive prefix list and previously computed indiviual offsets to move
 	//particles into their correction positions within the particle buffer
 	sortShader.use();
-	glDispatchCompute(ceil((float)particles / 1024.0f), 1, 1);
+	glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1);
 }
 
 void ParticleSystem::generateVertexData() {
 	if (!performanceMode || !wait) {
-		if (drawParticles) {
-			genVerticesShader.use(); //simply creates vertex for each particle
-			glDispatchCompute(ceil((float)particles / 1024.0f), 1, 1);
-		}
-
-		if (calcColor) {
+		if (drawMode == 0) {
 			colorShader.use(); //generates colour values
-			glDispatchCompute(ceil((float)C_NUM_CELLS / 1024.0f), 1, 1);
-		}
-
-		if (drawMs) {
+			glDispatchCompute((int)ceil((float)C_NUM_CELLS / 1024.0f), 1, 1);
 			genMSVerticesShader.use(); //convertes colour grid into vertices for rendering
-			glDispatchCompute(ceil((float)C_NUM_CELLS / 1024.0f), 1, 1);
+			glDispatchCompute((int)ceil((float)C_NUM_CELLS / 1024.0f), 1, 1);
+		}
+		else {
+			genVerticesShader.use(); //simply creates vertex for each particle
+			glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1);
 		}
 	}
 	wait = !wait;
@@ -516,25 +656,27 @@ void ParticleSystem::updateParticles() {
 
 		//apply external forces and move particles to predicted (naive) position
 		predictShader.use();
-		glDispatchCompute(ceil((float)particles / 1024.0f), 1, 1);
+		glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1);
 
 		//calculate lambdas using sph density constraint function
 		calcLamdasShader.use();
-		glDispatchCompute(ceil((float)particles / 1024.0f), 1, 1);
+		glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1);
 
 		//use lambdas and apply artifical pressure to update initial prediction of position
 		//also calculates velocity of particles using previous position and predicted position
 		improveShader.use();
-		glDispatchCompute(ceil((float)particles / 1024.0f), 1, 1);
+		glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1);
 
 		//apply viscosity using velocity values and then set the particles actual position
 		//to the predicted position
 		applyShader.use();
-		glDispatchCompute(ceil((float)particles / 1024.0f), 1, 1);
+		glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1);
 		
 
 		//interesting to explore how difficult/easy to per particle things (heat, reactions)
 	}
+
+	particlesToRender = particles;
 }
 
 void ParticleSystem::update(float deltaTime) {
@@ -548,18 +690,17 @@ void ParticleSystem::update(float deltaTime) {
 
 void ParticleSystem::render() {
 	if (particles != 0) {
-		if (drawParticles) {
-			glBindVertexArray(pointVAO);
-			//glBindBuffer(GL_ARRAY_BUFFER, pointSSBO);
-			particlePointShader.use();
-			glDrawArrays(GL_POINTS, 0, particles);
-		}
-
-		if (drawMs) {
+		if (drawMode == 0) { //ms
 			glBindVertexArray(msVAO);
 			//glBindBuffer(GL_ARRAY_BUFFER, msSSBO);
 			msShader.use();
 			glDrawArrays(GL_TRIANGLES, 0, C_NUM_CELLS * 9);
+		}
+		else { //particles
+			glBindVertexArray(pointVAO);
+			//glBindBuffer(GL_ARRAY_BUFFER, pointSSBO);
+			particlePointShader.use();
+			glDrawArrays(GL_POINTS, 0, particlesToRender);
 		}
 	}
 

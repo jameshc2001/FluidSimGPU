@@ -86,7 +86,9 @@ void main() {
 
 	vec4 rgba = vec4(0, 0, 0, 0);
 	float value = 0;
+	float speed = 0;
 	int neighbours = 0;
+	float totalDistance2 = 0;
 
 	//search for neighbours
 	for (int y = py - 1; y <= py + 1; y++) {
@@ -101,8 +103,14 @@ void main() {
 				float dist2 = dot(difference, difference);
 
 				if (dist2 < cRadius2) {
+//					value += (particleRadius * particleRadius) / dist2; //metaball calculation
+//					rgba += properties[o.properties].color;
+//					speed += length(o.velocity);
+//					neighbours++;
+
 					value += (particleRadius * particleRadius) / dist2; //metaball calculation
-					rgba += properties[o.properties].color;
+					rgba += properties[o.properties].color;// / (dist2 / 50);
+					totalDistance2 += dist2;
 					neighbours++;
 				}
 			}
@@ -115,6 +123,8 @@ void main() {
 	}
 
 	//take averages, maybe we can do something more clever here
+//	values[id] = value;
+//	colors[id] = (rgba / neighbours) + speed / 10000.0;
 	values[id] = value;
 	colors[id] = rgba / neighbours;
 }

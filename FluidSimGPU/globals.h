@@ -1,6 +1,9 @@
 #pragma once
 
 #define _USE_MATH_DEFINES
+
+#include "imgui/imgui.h"
+
 #include <math.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -14,12 +17,23 @@ namespace guiVariables {
 
 	inline float gravity = -9.81f;
 
-	inline int spawnSpeed = 1.0f;
+	inline int spawnSpeed = 5;
+	inline float spawnInterval = 0.05f; //in secdonds
 	inline float spawnRadius = 40.0f;
 	inline float deleteRadius = 40.0f;
 
+	inline bool lineSnap = false;
+
 	inline int damSize = 10;
 	inline glm::vec2 damPosition = glm::vec2(640, 360);
+
+	inline float diseaseDistribution = 0;
+
+	inline ImVec4 backgroundColor = ImVec4(1.0f, 0.8f, 0.5f, 1.0f);
+	//inline glm::vec4 backgroundColor = glm::vec4(1.0f, 0.8f, 0.5f, 1.0f);
+	inline ImVec4 geometryColor = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+
+	inline bool pause = false;
 }
 
 namespace constants {
@@ -89,7 +103,7 @@ namespace constants {
 
 	//UTILITY CONSTANTS START HERER
 
-	inline constexpr int SPAWN_INTERVAL = 0.1; //in secdonds
+	
 	inline constexpr float SPAWN_RADIUS = 36.0f; //originally KR * 3
 	inline constexpr int SPAWN_INTERVAL_FAST = 5; //in ticks
 	inline constexpr float SPAWN_RADIUS_FAST = 48.0f; //originally KR * 4
