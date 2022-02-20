@@ -137,7 +137,7 @@ bool initialise() {
 	glGenBuffers(1, &circleEBO);
 	glBindVertexArray(circleVAO);
 	glBindBuffer(GL_ARRAY_BUFFER, circleVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(circleVertices), circleVertices, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(circleVertices), circleVertices, GL_DYNAMIC_DRAW); //why dynamic?
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, circleEBO);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(circleIndices), circleIndices, GL_DYNAMIC_DRAW);
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
@@ -241,10 +241,13 @@ void handleInput(float currentTime) {
 				timeSinceLastSpawn -= guiVariables::spawnInterval;
 			}
 		}
+		else if (guiVariables::editMode == 2) { //blower mode
+			particleSystem.blower.setSource(mousePos);
+		}
 	}
 
 	if (leftMouseJustDown) { //ie, not held down
-		if (guiVariables::editMode == 1) {
+		if (guiVariables::editMode == 1) { //geometry mode
 			if (!buildingLine) { //start building a line
 				buildingLine = true;
 				lineStart = mousePos;
@@ -269,9 +272,12 @@ void handleInput(float currentTime) {
 	}
 
 	if (rightMouseDown) {
-		if (guiVariables::editMode == 0 && !guiVariables::pause) {
+		if (guiVariables::editMode == 0 && !guiVariables::pause) { //fluid mode
 			particleSystem.removeParticles(mousePos, guiVariables::deleteRadius);
 			renderCircle(mousePos, guiVariables::deleteRadius);
+		}
+		else if (guiVariables::editMode == 2) { //blower mode
+			particleSystem.blower.setEnd(mousePos);
 		}
 	}
 

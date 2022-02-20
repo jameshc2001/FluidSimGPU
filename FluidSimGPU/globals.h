@@ -34,6 +34,8 @@ namespace guiVariables {
 	inline ImVec4 geometryColor = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
 
 	inline bool pause = false;
+	
+	inline bool blowerVisible = false;
 }
 
 namespace constants {

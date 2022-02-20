@@ -51,6 +51,19 @@ uniform bool windEnabled;
 uniform vec2 centre;
 uniform vec2 strength;
 
+uniform vec2 blowerDir; //also store perp vector?
+uniform float blowerStrength;
+uniform vec2 sourcePos;
+uniform vec2 blowerLengthVec;
+uniform float blowerLength;
+uniform vec2 bV1;
+uniform vec2 bV2;
+uniform vec2 bV3;
+uniform vec2 bV4;
+uniform vec2 AABBmin;
+uniform vec2 AABBmax;
+uniform bool blowerOn;
+
 void main() {
 	uint id = gl_GlobalInvocationID.x;
 	if (id >= numParticles) return;
@@ -65,6 +78,30 @@ void main() {
 		p.velocity.x += 0.01 * strength.x * (-p.position.y + centre.y);
 		p.velocity.y += 0.01 * strength.y * (p.position.x - centre.x);
 	}
+
+	//blower
+	//AABB check
+	if (blowerOn && p.position.x < AABBmax.x && p.position.x > AABBmin.x && p.position.y < AABBmax.y && p.position.y > AABBmin.y) {
+		//point in quad check, essentially check point is on 'right' side of each line
+		float d1 = (p.position.x - bV1.x) * (bV3.y - bV1.y) - (p.position.y - bV1.y) * (bV3.x - bV1.x);
+		float d2 = (p.position.x - bV3.x) * (bV4.y - bV3.y) - (p.position.y - bV3.y) * (bV4.x - bV3.x);
+		float d3 = (p.position.x - bV4.x) * (bV2.y - bV4.y) - (p.position.y - bV4.y) * (bV2.x - bV4.x);
+		float d4 = (p.position.x - bV2.x) * (bV1.y - bV2.y) - (p.position.y - bV2.y) * (bV1.x - bV2.x);
+		//small optimization would be to save results of minus operations on quad vertices. Not worth the effort.
+
+		if (d1 < 0 && d2 < 0 && d3 < 0 && d4 < 0) {
+			//p.velocity += blowerStrength * blowerDir; //very simple, is it wrong though?
+
+			vec2 sourceToP = p.position - sourcePos;
+			//now project onto the blower length vector
+			float dist = max((dot(sourceToP, blowerLengthVec) / blowerLength), blowerLength/3); //play with the clamp
+			float scaler = dist / blowerLength; //low if particle close to source, bound between 0 and 1
+			//p.velocity += (blowerStrength / scaler) * blowerDir; //reciprocal relationship
+			p.velocity += abs((scaler-1) * blowerStrength) * blowerDir; //linear relationship
+		}
+	}
+
+	//line attraction (stickiness)
 
 	p.predictedPosition = p.position + p.velocity * deltaTime;
 

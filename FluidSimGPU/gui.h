@@ -18,11 +18,13 @@
 
 #include "globals.h"
 #include "particle_system.h"
+#include "blower.h"
 
 class GUI {
 private:
 	GLFWwindow* window;
 	ParticleSystem* particleSystem;;
+	Blower* blower;
 	float prevScaleFactor = 0;
 
 	std::array<std::string, constants::MAX_PARTICLE_TYPES> fluidNames;

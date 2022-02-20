@@ -39,6 +39,7 @@ bool GUI::hasMouse() {
 void GUI::initialise(GLFWwindow* _window, ParticleSystem* _particleSystem) {
 	window = _window;
 	particleSystem = _particleSystem;
+	blower = &particleSystem->blower;
 
 	IMGUI_CHECKVERSION();
 	CreateContext();
@@ -81,7 +82,9 @@ void GUI::update() {
 		RadioButton("Fluid", &editMode, 0); SameLine();
 		HelpMarker("Hold left click to spawn selected fluid.\nHold right click to remove fluid."); SameLine();
 		RadioButton("Geometry", &editMode, 1); SameLine();
-		HelpMarker("Left click to start creating a line, right click to cancel.\nRight click existing line to delete.\nLines snap together during creation at each end point.");
+		HelpMarker("Left click to start creating a line, right click to cancel.\nRight click existing line to delete.\nLines snap together during creation at each end point."); SameLine();
+		RadioButton("Blower", &editMode, 2); SameLine();
+		HelpMarker("Left click to place blower.\nRight click to select direction and length.");
 
 		Separator();
 
@@ -187,11 +190,26 @@ void GUI::update() {
 				Unindent();
 			}
 		}
-		else {
-			//show options for geometry (select curved or line mode)
+		else if (editMode == 1) {
+			//show options for geometry
 			Text("Geometry Creation Settings");
 			Checkbox("Snap To Vertex", &lineSnap); SameLine();
 			HelpMarker("When creating a new line, if this setting is enabled, the start of the new line will snap to a nearby existing line vertex.");
+		}
+		else {
+			Text("Blower Settings");
+
+			bool needToUpdate = false;
+
+			if (Checkbox("Visible", &blowerVisible)) { needToUpdate = true; }
+			if (DragFloat("Source Width", &blower->sourceWidth, 5.0f, 5.0f, 500.0f, "%2.2f", ImGuiSliderFlags_AlwaysClamp)) { needToUpdate = true; }
+			if (DragFloat("End Width", &blower->endWidth, 5.0f, 5.0f, 500.0f, "%2.2f", ImGuiSliderFlags_AlwaysClamp)) { needToUpdate = true; }
+			if (DragFloat("Strength", &blower->strength, 0.5f, 0.0f, 20.0f, "%2.2f", ImGuiSliderFlags_AlwaysClamp)) { needToUpdate = true; }
+			if (Checkbox("On", &blower->on)) { needToUpdate = true; }
+
+			if (needToUpdate) {
+				blower->setupBlower();
+			}
 		}
 		Unindent();
 	}

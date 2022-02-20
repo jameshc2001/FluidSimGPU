@@ -181,6 +181,9 @@ void ParticleSystem::initialise() {
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, lineSSBO);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Line) * MAX_LINES + sizeof(int) * L_NUM_CELLS + sizeof(int) * 100000, NULL, GL_STATIC_DRAW); //dont know how big so make it super big
 
+	//setup blower
+	blower = Blower(glm::vec2(20, 500), 100, 400, 300, 5, -3.14/2, &particlePointShader, &predictShader);
+
 	saveState();
 }
 
@@ -709,6 +712,8 @@ void ParticleSystem::render() {
 	//glBindBuffer(GL_ARRAY_BUFFER, lineVBO); //maybe unnecessary;
 	lineShader.use();
 	glDrawArrays(GL_LINES, 0, numLines * 2); //2 vertices per line
+
+	if (guiVariables::blowerVisible) blower.render();
 
 	glBindVertexArray(0);
 }

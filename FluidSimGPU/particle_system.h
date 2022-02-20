@@ -16,6 +16,7 @@
 #include "globals.h"
 #include "shader.h"
 #include "line.h"
+#include "blower.h"
 
 using namespace constants;
 
@@ -130,6 +131,7 @@ public:
 	glm::vec2 windStrength = glm::vec2(0.01, 0.01);
 
 	std::array<ParticleProperties, constants::MAX_PARTICLE_TYPES> particleProperties;
+	Blower blower;
 
 	ParticleSystem();
 
