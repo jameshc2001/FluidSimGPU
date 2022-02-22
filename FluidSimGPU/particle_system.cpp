@@ -153,8 +153,9 @@ void ParticleSystem::initialise() {
 
 	//send particle properties to gpu
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, propertiesSSBO);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(ParticleProperties) * particleProperties.size() + sizeof(float) * MAX_PARTICLES, NULL, GL_DYNAMIC_DRAW);
-	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(ParticleProperties)* particleProperties.size(), &particleProperties[0]);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(ParticleProperties) * particleProperties.size() + sizeof(diseased) + sizeof(float) * MAX_PARTICLES, NULL, GL_DYNAMIC_DRAW);
+	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(ParticleProperties) * particleProperties.size(), &particleProperties[0]); //properties
+	glBufferSubData(GL_SHADER_STORAGE_BUFFER, sizeof(ParticleProperties) * particleProperties.size(), sizeof(diseased), &diseased[0]); //diseased
 
 	//setup particle buffer to be max size, multiply by 2 for particle sorting operations
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, particleSSBO);
@@ -191,7 +192,7 @@ void ParticleSystem::addParticles(std::vector<Particle>* particlesToAdd) {
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, particleSSBO);
 	glBufferSubData(GL_SHADER_STORAGE_BUFFER, particles * sizeof(Particle), particlesToAdd->size() * sizeof(Particle), &(*particlesToAdd)[0]);
 	particles += (int)particlesToAdd->size();
-	if (particleProperties[(*particlesToAdd)[0].properties].diseased) diseasedParticles += (int)particlesToAdd->size();
+	if (diseased[(*particlesToAdd)[0].properties] == 1) diseasedParticles += (int)particlesToAdd->size();
 	glBindBuffer(GL_UNIFORM_BUFFER, simUBO);
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(int), &particles);
 	//std::cout << "\n" << particles << "\n" << std::endl;
@@ -270,6 +271,7 @@ void ParticleSystem::saveState() {
 	}
 
 	state.savedProperties = particleProperties;
+	state.savedDiseased = diseased;
 	state.savedNumOfParticles = particles;
 	state.savedNumOfDiseased = diseasedParticles;
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, particleSSBO);
@@ -287,12 +289,17 @@ void ParticleSystem::loadState() {
 	}
 
 	particleProperties = state.savedProperties;
+	diseased = state.savedDiseased;
 	particles = state.savedNumOfParticles;
 	diseasedParticles = state.savedNumOfDiseased;
 	glBindBuffer(GL_UNIFORM_BUFFER, simUBO);
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(int), &particles);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, particleSSBO);
 	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, MAX_PARTICLES * sizeof(Particle), &state.savedParticles[0]);
+
+	//update which particles are considered 'diseased'
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, propertiesSSBO);
+	glBufferSubData(GL_SHADER_STORAGE_BUFFER, sizeof(ParticleProperties) * particleProperties.size(), sizeof(diseased), &diseased[0]); //diseased
 
 	updateProperties();
 
@@ -316,7 +323,12 @@ void ParticleSystem::updateProperties() {
 	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(ParticleProperties) * particleProperties.size(), &particleProperties[0]);
 }
 
-void ParticleSystem::updateNumOfDiseased() {
+void ParticleSystem::updateDiseased() {
+	//update which particles are considered 'diseased'
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, propertiesSSBO);
+	glBufferSubData(GL_SHADER_STORAGE_BUFFER, sizeof(ParticleProperties) * particleProperties.size(), sizeof(diseased), &diseased[0]); //diseased
+
+	//update number of diseased particles
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, gridCellSSBO);
 	int data = 0;
 	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(int), &data);
@@ -654,7 +666,7 @@ void ParticleSystem::updateParticles() {
 	for (int substep = 0; substep < SUBSTEPS; substep++) {
 		if (substep == SUBSTEPS - 1) {
 			finalIteration = 1;
-			glBufferSubData(GL_UNIFORM_BUFFER, 10 * sizeof(int), sizeof(int), &finalIteration);
+			glBufferSubData(GL_UNIFORM_BUFFER, 10 * sizeof(int), sizeof(int), &finalIteration); //still on simUBO
 		}
 
 		//apply external forces and move particles to predicted (naive) position

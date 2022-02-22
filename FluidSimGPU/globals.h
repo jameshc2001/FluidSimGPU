@@ -30,7 +30,6 @@ namespace guiVariables {
 	inline float diseaseDistribution = 0;
 
 	inline ImVec4 backgroundColor = ImVec4(1.0f, 0.8f, 0.5f, 1.0f);
-	//inline glm::vec4 backgroundColor = glm::vec4(1.0f, 0.8f, 0.5f, 1.0f);
 	inline ImVec4 geometryColor = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
 
 	inline bool pause = false;

@@ -44,6 +44,7 @@ struct SaveState {
 	std::array<Line, MAX_LINES> savedLines;
 	std::vector<int> savedLineGrid[constants::L_X_CELLS][constants::L_Y_CELLS];
 	std::array<ParticleProperties, MAX_PARTICLE_TYPES> savedProperties;
+	std::array<int, MAX_PARTICLE_TYPES> savedDiseased;
 	int savedNumOfParticles;
 	int savedNumOfDiseased;
 	std::array<Particle, MAX_PARTICLES> savedParticles;
@@ -124,6 +125,8 @@ public:
 	int wait = false;
 	int drawMode = 0;
 
+	std::array<int, constants::MAX_PARTICLE_TYPES> diseased; //one to one of particleProperties
+
 	//vector field settings
 	bool gravityEnabled = true;
 	bool windEnabled = false;
@@ -145,7 +148,7 @@ public:
 	void loadState();
 
 	void updateProperties();
-	void updateNumOfDiseased();
+	void updateDiseased();
 	void updateGravity();
 	void updateLineColor() { updateLinesGPU(); } //faster way of doing this?
 	void setVectorField();

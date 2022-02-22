@@ -28,6 +28,7 @@ layout(std430, binding = 1) buffer GridBuffer { //a bit hacky, using first eleme
 
 layout(std430, binding = 2) buffer PropertiesBuffer {
 	Properties properties[6];
+	int diseased[6];
 	float densities[];
 };
 
@@ -67,5 +68,5 @@ void main() {
 
 	Particle p = particles[id];
 
-	if (properties[p.properties].diseased) atomicAdd(gridData[0], 1); //count number of diseased particles
+	if (diseased[p.properties] == 1) atomicAdd(gridData[0], 1); //count number of diseased particles
 }

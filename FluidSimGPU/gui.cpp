@@ -164,7 +164,11 @@ void GUI::update() {
 
 							//diseased, conversion to bool OK
 							bool updateDiseased = false;
-							if (Checkbox("Diseased", (bool*)&pp.diseased)) {
+							/*if (Checkbox("Diseased", (bool*)&pp.diseased)) {
+								needToUpdate = true;
+								updateDiseased = true;
+							}*/
+							if (Checkbox("Diseased", (bool*)&particleSystem->diseased[i])) {
 								needToUpdate = true;
 								updateDiseased = true;
 							}
@@ -180,7 +184,7 @@ void GUI::update() {
 								particleSystem->updateProperties();
 							}
 
-							if (updateDiseased) particleSystem->updateNumOfDiseased();
+							if (updateDiseased) particleSystem->updateDiseased();
 
 							EndPopup();
 						}

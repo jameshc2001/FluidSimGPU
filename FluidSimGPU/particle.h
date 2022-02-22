@@ -6,7 +6,6 @@
 
 #include <string>
 
-#include "vec2.h"
 #include "globals.h"
 
 struct ParticleProperties {

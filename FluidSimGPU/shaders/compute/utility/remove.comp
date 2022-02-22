@@ -28,6 +28,7 @@ layout(std430, binding = 1) buffer GridBuffer { //a bit hacky, using first eleme
 
 layout(std430, binding = 2) buffer PropertiesBuffer {
 	Properties properties[6];
+	int diseased[6];
 	float densities[];
 };
 
@@ -72,7 +73,7 @@ void main() {
 
 	if (distance(p.position, deletePosition) <= deleteRadius) {
 		int particleToSwap = atomicAdd(gridData[0], -1) - 1;
-		if (properties[p.properties].diseased) atomicAdd(gridData[1], 1);
+		if (diseased[p.properties] == 1) atomicAdd(gridData[1], 1);
 		particles[id] = particles[particleToSwap];
 	}
 }
