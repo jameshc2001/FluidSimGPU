@@ -43,6 +43,30 @@ void Blower::setEnd(glm::vec2 end) {
 	setupBlower();
 }
 
+//From Gareth Rees' answer:
+//https://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect
+void Blower::findCentre(glm::vec2 start1, glm::vec2 end1, glm::vec2 start2, glm::vec2 end2) {
+	glm::vec2 p = start1;
+	glm::vec2 r = end1 - start1;
+	glm::vec2 q = start2;
+	glm::vec2 s = end2 - start2;
+
+	float a = r.x * s.y - r.y * s.x;
+	float b = (q - p).x * r.y - (q - p).y * r.x;
+
+	//if (a == 0 && b != 0) { //parallel
+	//	parallel = true;
+	//	behindEnd = false;
+	//	return;
+	//}
+	
+	//intersection!
+	float u = b / a;
+	centre = q + u * s;
+	parallel = false;
+	behindEnd = u > 0;
+}
+
 void Blower::setupBlower() {
 	//generate vertices
 	glm::vec2 vAngle = glm::vec2(cos(angle), sin(angle)); //assumes angle is in radians
@@ -54,6 +78,17 @@ void Blower::setupBlower() {
 	glm::vec2 endCentre = sourcePosition + length * blowerDir; //right hand perpendicular
 	glm::vec2 v3 = endCentre + (float)(0.5 * endWidth) * vAngle;
 	glm::vec2 v4 = endCentre - (float)(0.5 * endWidth) * vAngle;
+
+	//determine circle centre (for getting direction of force)
+	//check if parallel first
+	if (sourceWidth == endWidth) {
+		parallel = true;
+		behindEnd = false;
+	}
+	else findCentre(v1, v3, v2, v4);
+
+	std::cout << centre.x << " " << centre.y << std::endl;
+	std::cout << "parallel" << parallel << " behindEnd" << behindEnd << std::endl;
 
 	//determine AABB
 	float maxX = std::max(std::max(v1.x, v2.x), std::max(v3.x, v4.x));
@@ -81,6 +116,7 @@ void Blower::updateGPU(glm::vec2 blowerDir, glm::vec2 AABBmin, glm::vec2 AABBmax
 	//update predict shader parameters
 	predictShader->use();
 	predictShader->setVec2("blowerDir", blowerDir);
+	predictShader->setVec2("blowerCentre", centre);
 	predictShader->setFloat("blowerStrength", strength);
 	predictShader->setVec2("sourcePos", sourcePosition);
 	predictShader->setVec2("blowerLengthVec", blowerDir * length);
@@ -92,6 +128,8 @@ void Blower::updateGPU(glm::vec2 blowerDir, glm::vec2 AABBmin, glm::vec2 AABBmax
 	predictShader->setVec2("AABBmin", AABBmin);
 	predictShader->setVec2("AABBmax", AABBmax);
 	predictShader->setBool("blowerOn", on);
+	predictShader->setBool("parallel", parallel);
+	predictShader->setBool("behindEnd", behindEnd);
 }
 
 void Blower::render() {

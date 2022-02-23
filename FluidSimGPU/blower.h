@@ -11,8 +11,11 @@
 class Blower {
 private:
 	glm::vec2 sourcePosition;
+	glm::vec2 centre;
 	float length;
 	float angle;
+	bool parallel;
+	bool behindEnd;
 
 	glm::vec4 vertexData[8]; //even indices for coordinates and odd for colors
 	unsigned int vertexIndices[6] = {0, 2, 1, 2, 3, 1};
@@ -20,6 +23,8 @@ private:
 
 	Shader* pointShader;
 	Shader* predictShader;
+
+	void findCentre(glm::vec2 start1, glm::vec2 end1, glm::vec2 start2, glm::vec2 end2);
 
 	void updateGPU(glm::vec2 blowerDir, glm::vec2 AABBmin, glm::vec2 AABBmax);
 

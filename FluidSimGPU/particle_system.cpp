@@ -57,9 +57,13 @@ void ParticleSystem::initialise() {
 	measureShader.loadCompute("shaders/compute/utility/measure.comp");
 
 
+	predictShader.use();
+	predictShader.setFloat("lineGridRes", LINE_GRID_RESOLUTION);
+	predictShader.setInt("lineXCells", L_X_CELLS);
 	applyShader.use();
 	applyShader.setFloat("lineGridRes", LINE_GRID_RESOLUTION);
 	applyShader.setInt("lineXCells", L_X_CELLS);
+
 
 	setVectorField();
 

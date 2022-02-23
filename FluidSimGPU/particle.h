@@ -12,12 +12,12 @@ struct ParticleProperties {
 	float mass;
 	float viscosity;
 	float restDensity;
-	int diseased;
+	float stickiness;
 	glm::vec4 color;
 
 	ParticleProperties() = default;
-	ParticleProperties(float m, float v, int _diseased, glm::vec4 _color) :
-		mass(m), viscosity(v), diseased(_diseased), restDensity(constants::REST_DENSITY * m), color(_color) { }
+	ParticleProperties(float m, float v, float _stickiness, glm::vec4 _color) :
+		mass(m), viscosity(v), stickiness(_stickiness), restDensity(constants::REST_DENSITY * m), color(_color) { }
 };
 
 struct Particle {

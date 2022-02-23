@@ -17,7 +17,7 @@ struct Properties { //particle properties
 	float mass;
 	float viscosity;
 	float restDensity;
-	bool diseased;
+	float stickiness;
 	vec4 color;
 };
 
@@ -161,6 +161,12 @@ void main() {
 		vec2 dc = c - d;
 		float dcLength2 = dot(dc, dc);
 		if (dcLength2 < particleRadius * particleRadius) { //collision
+			//apply stickiness now, saves us having to loop through lines again in predict shader
+			if (properties[p.properties].stickiness > 0) {
+				vec2 stickDir = normalize(-dc);
+				p.velocity /= properties[p.properties].stickiness / 100.0 + 1.0;
+			}
+
 			//resolve collision
 			vec2 normal = normalize(dc);
 			float dcLength = sqrt(dcLength2);

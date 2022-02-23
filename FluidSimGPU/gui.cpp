@@ -158,6 +158,8 @@ void GUI::update() {
 							//if (DragFloat("Viscosity", &pp.viscosity, 0.05f, 0.01f, 100.0f, "%2.2f * 10^2 mPa-s", ImGuiSliderFlags_AlwaysClamp)) needToUpdate = true;
 							pp.restDensity = constants::REST_DENSITY * pp.mass;
 
+							if (DragFloat("Stickiness", &pp.stickiness, 0.05f, 0.0f, 20.0f, "%2.2f", ImGuiSliderFlags_AlwaysClamp)) { needToUpdate = true;  }
+
 							//color
 							if (ColorEdit4("Colour", (float*)&color, NULL)) needToUpdate = true;;
 							pp.color = glm::vec4(color.x, color.y, color.z, color.w);

@@ -16,6 +16,20 @@ layout(std430, binding = 0) buffer ParticleBuffer {
 	Particle particles[];
 };
 
+struct Line {
+	vec2 a;
+	vec2 b;
+	vec2 ab;
+	float lengthAb;
+	int id;
+};
+
+layout(std430, binding = 6) buffer LineBuffer {
+	Line lines[512]; //needs to be updated each time max lines is changed
+	int lineCellStart[14652]; //this number needs to be changed each time line grid resolution is changed!
+	int lineIndexes[]; //unkwown length so must be at end of buffer
+};
+
 layout(std140, binding = 0) uniform SimulationValues {
 	int numParticles;
 	int numCells;
@@ -51,7 +65,8 @@ uniform bool windEnabled;
 uniform vec2 centre;
 uniform vec2 strength;
 
-uniform vec2 blowerDir; //also store perp vector?
+uniform vec2 blowerDir;
+uniform vec2 blowerCentre;
 uniform float blowerStrength;
 uniform vec2 sourcePos;
 uniform vec2 blowerLengthVec;
@@ -63,6 +78,32 @@ uniform vec2 bV4;
 uniform vec2 AABBmin;
 uniform vec2 AABBmax;
 uniform bool blowerOn;
+uniform bool parallel;
+uniform bool behindEnd; //true if centre is behind end
+
+uniform float lineGridRes;
+uniform int lineXCells;
+
+//From Gareth Rees' answer:
+//https://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect
+vec2 getIntersection(vec2 start1, vec2 end1, vec2 start2, vec2 end2, bool segments) {
+	vec2 p = start1;
+	vec2 r = end1 - start1;
+	vec2 q = start2;
+	vec2 s = end2 - start2;
+
+	float a = r.x * s.y - r.y * s.x;
+	float b = (q - p).x * r.y - (q - p).y * r.x;
+
+	float u = b / a;
+	if (a != 0 && segments && u <= 0 || u >= 1)  return vec2(-1, -1); //indicates no intersection of line segments
+//	if (segments && u <= 0 || u >= 1) {
+//		float c = (q - p).x * s.y - (q - p).y * s.x;
+//		float t = c / a;
+//		if (t <= 0 || t >= 1) return vec2(-1, -1); //indicates no intersection of line segments
+//	}
+	return q + u * s;
+}
 
 void main() {
 	uint id = gl_GlobalInvocationID.x;
@@ -92,18 +133,89 @@ void main() {
 		if (d1 < 0 && d2 < 0 && d3 < 0 && d4 < 0) {
 			//p.velocity += blowerStrength * blowerDir; //very simple, is it wrong though?
 
-			vec2 sourceToP = p.position - sourcePos;
-			//now project onto the blower length vector
-			float dist = max((dot(sourceToP, blowerLengthVec) / blowerLength), blowerLength/3); //play with the clamp
-			float scaler = dist / blowerLength; //low if particle close to source, bound between 0 and 1
-			//p.velocity += (blowerStrength / scaler) * blowerDir; //reciprocal relationship
-			p.velocity += abs((scaler-1) * blowerStrength) * blowerDir; //linear relationship
+			//get correct source position such that particles on edge of blower are blown
+			//away from centre aswell as away from blower. SEE NOTES
+			vec2 correctedSource;
+			if (parallel) {
+				correctedSource = getIntersection(bV2, bV1, p.position, p.position + blowerDir, false);
+			}
+			else {
+				correctedSource = getIntersection(bV2, bV1, p.position, blowerCentre, false);
+			}
+
+			//now check if a line is between this point and the blower, use sourceToP and line info
+			//bresenham through the line grid
+			//first convert to grid coordinates
+			int x0 = int(floor(p.position.x / lineGridRes));
+			int y0 = int(floor(p.position.y / lineGridRes));
+			int x1 = int(floor(correctedSource.x / lineGridRes));
+			int y1 = int(floor(correctedSource.y / lineGridRes));
+
+			//use Alois Zingl's version of the bresenham line drawing algorithm from Easy Filter:
+			//http://members.chello.at/easyfilter/bresenham.html
+			int dx = abs(x1 - x0);
+			int dy = -abs(y1 - y0);
+			int sx = x0 < x1 ? 1 : -1;
+			int sy = y0 < y1 ? 1 : -1;
+			int err = dx + dy;
+			int e2;
+
+			bool intersection = false;
+
+			while (!intersection) {
+				//check if line is there
+				int lineGridCell = y0 * lineXCells + x0;
+				for (int i = lineCellStart[lineGridCell]; i < lineCellStart[lineGridCell + 1] && !intersection; i++) { //loop through all lines in this cell
+					Line l = lines[lineIndexes[i]];
+
+					//check for intersection
+					//may be faster to just check if surrounding cells also have reference to this line
+//					bool allCells = true; //remains true if this line we are considering is in all surrounding cells
+//					for (int x = -1; x <= 1 && allCells; x++) {
+//						for (int y = -1; y <= 1 && allCells; y++) {
+//							int otherCell = (y0 + y) * lineXCells + (x0 + x);
+//							bool sameLine = false;
+//							for (int j = lineCellStart[lineGridCell]; j < lineCellStart[lineGridCell + 1]; j++) {
+//								if (j == i) sameLine = true;
+//							}
+//							if (!sameLine) allCells = false; //this cell didn't contain the same line
+//						}
+//					}
+//					intersection = allCells;
+					if (getIntersection(l.a, l.b, p.position, correctedSource, true).x != -1) intersection = true;
+				}
+
+				//progress the line drawing algorithm
+				e2 = 2 * err;
+				if (e2 >= dy) {
+					if (x0 == x1) break;
+					err += dy;
+					x0 += sx;
+				}
+				if (e2 <= dx) {
+					if (y0 == y1) break;
+					err += dx;
+					y0 += sy;
+				}
+			}
+			//end of bresenham line algorithm
+
+			if (!intersection) {
+//				vec2 sourceToP = p.position - sourcePos;
+//				//now project onto the blower length vector
+//				float dist = max((dot(sourceToP, blowerLengthVec) / blowerLength), blowerLength/3); //play with the clamp
+
+				vec2 sourceToP = p.position - correctedSource;
+				float dist = length(sourceToP);
+
+				float scaler = dist / blowerLength; //low if particle close to source, bound between 0 and 1
+				//p.velocity += (blowerStrength / scaler) * blowerDir; //reciprocal relationship
+				p.velocity += abs((scaler-1) * blowerStrength) * (sourceToP/dist); //blowerDir; //linear relationship
+			}
 		}
 	}
 
-	//line attraction (stickiness)
-
+	//integrate to estimate
 	p.predictedPosition = p.position + p.velocity * deltaTime;
-
 	particles[id] = p;
 }
