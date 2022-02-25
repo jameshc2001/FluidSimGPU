@@ -48,7 +48,34 @@ struct SaveState {
 	int savedNumOfParticles;
 	int savedNumOfDiseased;
 	std::array<Particle, MAX_PARTICLES> savedParticles;
+	Blower savedBlower; //contains pointers, makes serializatin harder. Need to decouple that
+
+	int savedSelectedFluid;
+	int savedSpawnSpeed;
+	float savedSpawnInterval;
+	float savedSpawnRadius;
+	float savedDeleteRadius;
+	int savedDamSize;
+	glm::vec2 savedDamPos;
+
+	bool savedGravityEnabled;
+	bool savedWindEnabled;
+	float savedGravityStrength;
+	glm::vec2 savedWindStrength;
+	glm::vec2 savedWindCentre;
+
+	int savedDrawMode;
+	bool savedPerformanceMode;
+	bool savedPause;
+
+	ImVec4 savedBackgroundColor;
+	ImVec4 savedGeometryColor;
 };
+
+//create another state called fileState
+//save to this state when user click save as file
+//modify save function to accept bool telling it to save to that state instead of the usual one
+//use cereal ;)
 
 class ParticleSystem {
 private:
@@ -136,6 +163,8 @@ public:
 	std::array<ParticleProperties, constants::MAX_PARTICLE_TYPES> particleProperties;
 	Blower blower;
 
+	Shader* getPredictShader() { return &predictShader; }
+
 	ParticleSystem();
 
 	void addParticles(std::vector<Particle>* particlesToAdd);
@@ -150,7 +179,7 @@ public:
 	void updateProperties();
 	void updateDiseased();
 	void updateGravity();
-	void updateLineColor() { updateLinesGPU(); } //faster way of doing this?
+	void updateLineColor() { if (numLines > 0) updateLinesGPU(); } //faster way of doing this?
 	void setVectorField();
 	void measureDiseaseDistribution();
 

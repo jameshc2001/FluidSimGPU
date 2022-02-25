@@ -242,7 +242,7 @@ void handleInput(float currentTime) {
 			}
 		}
 		else if (guiVariables::editMode == 2) { //blower mode
-			particleSystem.blower.setSource(mousePos);
+			particleSystem.blower.setSource(particleSystem.getPredictShader(), mousePos);
 		}
 	}
 
@@ -277,7 +277,7 @@ void handleInput(float currentTime) {
 			renderCircle(mousePos, guiVariables::deleteRadius);
 		}
 		else if (guiVariables::editMode == 2) { //blower mode
-			particleSystem.blower.setEnd(mousePos);
+			particleSystem.blower.setEnd(particleSystem.getPredictShader(), mousePos);
 		}
 	}
 

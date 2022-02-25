@@ -1,7 +1,7 @@
 #include "blower.h"
 
 Blower::Blower(glm::vec2 _sourcePosition, float _sourceWidth, float _length, float _endWidth,
-	float _strength, float _angle, Shader* _pointShader, Shader* _predictShader) {
+	float _strength, float _angle, Shader* _predictShader) {
 
 	//set fields
 	sourcePosition = _sourcePosition;
@@ -10,8 +10,6 @@ Blower::Blower(glm::vec2 _sourcePosition, float _sourceWidth, float _length, flo
 	endWidth = _endWidth;
 	strength = _strength;
 	angle = _angle;
-	pointShader = _pointShader;
-	predictShader = _predictShader;
 
 	//setup buffers
 	glGenVertexArrays(1, &VAO);
@@ -28,19 +26,19 @@ Blower::Blower(glm::vec2 _sourcePosition, float _sourceWidth, float _length, flo
 	glEnableVertexAttribArray(1);
 	glBindVertexArray(0); //done!
 
-	setupBlower();
+	setupBlower(_predictShader);
 }
 
-void Blower::setSource(glm::vec2 source) {
+void Blower::setSource(Shader* predictShader, glm::vec2 source) {
 	sourcePosition = source;
-	setupBlower();
+	setupBlower(predictShader);
 }
 
-void Blower::setEnd(glm::vec2 end) {
+void Blower::setEnd(Shader* predictShader, glm::vec2 end) {
 	glm::vec2 lengthVec = end - sourcePosition;
 	length = std::max(glm::length(lengthVec), 50.0f);
 	angle = -atan2(lengthVec.x, lengthVec.y); //normalise length vec?
-	setupBlower();
+	setupBlower(predictShader);
 }
 
 //From Gareth Rees' answer:
@@ -67,7 +65,7 @@ void Blower::findCentre(glm::vec2 start1, glm::vec2 end1, glm::vec2 start2, glm:
 	behindEnd = u > 0;
 }
 
-void Blower::setupBlower() {
+void Blower::setupBlower(Shader* predictShader) {
 	//generate vertices
 	glm::vec2 vAngle = glm::vec2(cos(angle), sin(angle)); //assumes angle is in radians
 	//garuanteed to be a unit vector because sin^2 + cos^2 = 1
@@ -105,10 +103,10 @@ void Blower::setupBlower() {
 	vertexData[6] = glm::vec4(v4, 0, 1); vertexData[7] = glm::vec4(0, 0, 0, 0);
 
 	//update opengl stuff
-	updateGPU(blowerDir, AABBmin, AABBmax);
+	updateGPU(predictShader, blowerDir, AABBmin, AABBmax);
 }
 
-void Blower::updateGPU(glm::vec2 blowerDir, glm::vec2 AABBmin, glm::vec2 AABBmax) {
+void Blower::updateGPU(Shader* predictShader, glm::vec2 blowerDir, glm::vec2 AABBmin, glm::vec2 AABBmax) {
 	//update vertex data
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertexData), vertexData, GL_STATIC_DRAW);
@@ -132,7 +130,7 @@ void Blower::updateGPU(glm::vec2 blowerDir, glm::vec2 AABBmin, glm::vec2 AABBmax
 	predictShader->setBool("behindEnd", behindEnd);
 }
 
-void Blower::render() {
+void Blower::render(Shader* pointShader) {
 	pointShader->use();
 	glBindVertexArray(VAO);
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);

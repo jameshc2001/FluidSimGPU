@@ -187,7 +187,7 @@ void ParticleSystem::initialise() {
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Line) * MAX_LINES + sizeof(int) * L_NUM_CELLS + sizeof(int) * 100000, NULL, GL_STATIC_DRAW); //dont know how big so make it super big
 
 	//setup blower
-	blower = Blower(glm::vec2(20, 500), 100, 400, 300, 5, -3.14/2, &particlePointShader, &predictShader);
+	blower = Blower(glm::vec2(20, 500), 100, 400, 300, 5, -3.14/2, &predictShader);
 
 	saveState();
 }
@@ -267,6 +267,7 @@ void ParticleSystem::resetGeometry() {
 void ParticleSystem::saveState() {
 	state.savedNumOfLines = numLines;
 	state.savedLines = lines;
+	state.savedBlower = blower;
 
 	for (int x = 0; x < L_X_CELLS; x++) {
 		for (int y = 0; y < L_Y_CELLS; y++) {
@@ -280,11 +281,36 @@ void ParticleSystem::saveState() {
 	state.savedNumOfDiseased = diseasedParticles;
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, particleSSBO);
 	glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, MAX_PARTICLES * sizeof(Particle), &state.savedParticles[0]);
+
+	//now save all the property/settings info
+	state.savedSelectedFluid = guiVariables::selectedFluid;
+	state.savedSpawnSpeed = guiVariables::spawnSpeed;
+	state.savedSpawnInterval = guiVariables::spawnInterval;
+	state.savedSpawnRadius = guiVariables::spawnRadius;
+	state.savedDeleteRadius = guiVariables::deleteRadius;
+	state.savedDamSize = guiVariables::damSize;
+	state.savedDamPos = guiVariables::damPosition;
+
+	//need to call functions to update a lot of this stuff GPU side
+	state.savedGravityEnabled = gravityEnabled;
+	state.savedWindEnabled = windEnabled;
+	state.savedGravityStrength = guiVariables::gravity;
+	state.savedWindStrength = windStrength;
+	state.savedWindCentre = windCentre;
+
+	state.savedDrawMode = drawMode;
+	state.savedPerformanceMode = performanceMode;
+	state.savedPause = guiVariables::pause;
+
+	state.savedBackgroundColor = guiVariables::backgroundColor;
+	state.savedGeometryColor = guiVariables::geometryColor;
 }
 
 void ParticleSystem::loadState() {
 	numLines = state.savedNumOfLines;
 	lines = state.savedLines;
+	blower = state.savedBlower;
+	blower.setupBlower(&predictShader);
 
 	for (int x = 0; x < L_X_CELLS; x++) {
 		for (int y = 0; y < L_Y_CELLS; y++) {
@@ -319,6 +345,34 @@ void ParticleSystem::loadState() {
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, lineSSBO);
 		glClearBufferData(GL_SHADER_STORAGE_BUFFER, GL_R32I, GL_RED, GL_INT, &zero);
 	}
+
+	//now load all the property/settings info
+	guiVariables::selectedFluid = state.savedSelectedFluid;
+	guiVariables::spawnSpeed = state.savedSpawnSpeed;
+	guiVariables::spawnInterval = state.savedSpawnInterval;
+	guiVariables::spawnRadius = state.savedSpawnRadius;
+	guiVariables::deleteRadius = state.savedDeleteRadius;
+	guiVariables::damSize = state.savedDamSize;
+	guiVariables::damPosition = state.savedDamPos;
+
+	//need to call functions to update a lot of this stuff GPU side
+	gravityEnabled = state.savedGravityEnabled;
+	windEnabled = state.savedWindEnabled;
+	guiVariables::gravity = state.savedGravityStrength;
+	windStrength = state.savedWindStrength;
+	windCentre = state.savedWindCentre;
+
+	drawMode = state.savedDrawMode;
+	performanceMode = state.savedPerformanceMode;
+	guiVariables::pause = state.savedPause;
+
+	guiVariables::backgroundColor = state.savedBackgroundColor;
+	guiVariables::geometryColor = state.savedGeometryColor;
+
+	//update stuff gpu side
+	updateGravity();
+	updateLineColor();
+	setVectorField();
 }
 
 //send particle properties to GPU, called by gui
@@ -525,7 +579,7 @@ void ParticleSystem::setDeleteLine(glm::vec2 position) {
 	}
 
 	if (lineToRender != prevDeleteLine) {
-		setLineColor(lineToRender, glm::vec3(1, 0, 0));
+		setLineColor(lineToRender, glm::vec3(1, 0, 0));//red, make it inverse of geometry color?
 		prevDeleteLine = lineToRender;
 	}
 }
@@ -538,7 +592,7 @@ void ParticleSystem::setLineColor(int line, glm::vec3 color) {
 
 void ParticleSystem::renderLine(glm::vec2 a, glm::vec2 b) {
 	std::vector<LineVertexData> linevd;
-	glm::vec3 color = glm::vec3(0, 0, 0);
+	glm::vec3 color = glm::vec3(guiVariables::geometryColor.x, guiVariables::geometryColor.y, guiVariables::geometryColor.z);
 	LineVertexData vd = { a, color };
 	linevd.push_back(vd);
 	vd = { b, color };
@@ -729,7 +783,7 @@ void ParticleSystem::render() {
 	lineShader.use();
 	glDrawArrays(GL_LINES, 0, numLines * 2); //2 vertices per line
 
-	if (guiVariables::blowerVisible) blower.render();
+	if (blower.visible) blower.render(&particlePointShader);
 
 	glBindVertexArray(0);
 }

@@ -65,8 +65,8 @@ void GUI::update() {
 	ImGui_ImplGlfw_NewFrame();
 	NewFrame();
 
-	//bool showDemoWindow = true;
-	//ShowDemoWindow(&showDemoWindow);
+	bool showDemoWindow = true;
+	ShowDemoWindow(&showDemoWindow);
 
 	Begin("Tool Box", NULL, ImGuiWindowFlags_NoCollapse);
 
@@ -207,14 +207,14 @@ void GUI::update() {
 
 			bool needToUpdate = false;
 
-			if (Checkbox("Visible", &blowerVisible)) { needToUpdate = true; }
+			if (Checkbox("Visible", &blower->visible)) { needToUpdate = true; }
 			if (DragFloat("Source Width", &blower->sourceWidth, 5.0f, 5.0f, 500.0f, "%2.2f", ImGuiSliderFlags_AlwaysClamp)) { needToUpdate = true; }
 			if (DragFloat("End Width", &blower->endWidth, 5.0f, 5.0f, 500.0f, "%2.2f", ImGuiSliderFlags_AlwaysClamp)) { needToUpdate = true; }
 			if (DragFloat("Strength", &blower->strength, 0.5f, 0.0f, 20.0f, "%2.2f", ImGuiSliderFlags_AlwaysClamp)) { needToUpdate = true; }
 			if (Checkbox("On", &blower->on)) { needToUpdate = true; }
 
 			if (needToUpdate) {
-				blower->setupBlower();
+				blower->setupBlower(particleSystem->getPredictShader());
 			}
 		}
 		Unindent();
