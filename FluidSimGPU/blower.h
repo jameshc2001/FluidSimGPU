@@ -5,7 +5,12 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <array>
 
+#include "cereal/cereal.hpp"
+#include "cereal/types/array.hpp"
+
+#include "globals.h"
 #include "shader.h"
 
 class Blower {
@@ -17,12 +22,9 @@ private:
 	bool parallel;
 	bool behindEnd;
 
-	glm::vec4 vertexData[8]; //even indices for coordinates and odd for colors
-	unsigned int vertexIndices[6] = {0, 2, 1, 2, 3, 1};
+	std::array<glm::vec4, 8> vertexData;
+	std::array<unsigned int, 6> vertexIndices = { 0, 2, 1, 2, 3, 1 };
 	unsigned int VAO, EBO, VBO;
-
-	//Shader* pointShader;
-	//Shader* predictShader;
 
 	void findCentre(glm::vec2 start1, glm::vec2 end1, glm::vec2 start2, glm::vec2 end2);
 
@@ -42,6 +44,13 @@ public:
 	void setSource(Shader* predictShader, glm::vec2 source);
 	void setEnd(Shader* predictShader, glm::vec2 end);
 
+	void deleteBuffers();
+	void completeSetup(Shader* predictShader);
 	void setupBlower(Shader* predictShader);
 	void render(Shader* pointShader);
+
+	template<class Archive> void serialize(Archive& archive) {
+		archive(sourcePosition, centre, length, angle, parallel, behindEnd, vertexData,
+			vertexIndices, VAO, EBO, VBO, sourceWidth, endWidth, strength, on, visible);
+	}
 };

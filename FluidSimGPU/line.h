@@ -5,6 +5,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include "cereal/cereal.hpp"
+
 #include "particle.h"
 
 class Line {
@@ -17,4 +19,8 @@ class Line {
 
 		Line() = default;
 		Line(glm::vec2 v1, glm::vec2 v2);
+
+		template<class Archive> void serialize(Archive& archive) {
+			archive(a, b, ab, length, id);
+		}
 };

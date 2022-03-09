@@ -9,7 +9,15 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-//this is a test
+#include "cereal/cereal.hpp"
+
+namespace glm {
+	template<class Archive> void serialize(Archive& archive, glm::vec2& v) { archive(v.x, v.y); }
+	template<class Archive> void serialize(Archive& archive, glm::vec4& v) { archive(v.x, v.y, v.z, v.w); }
+}
+
+template<class Archive> void serialize(Archive& archive, ImVec4& v) { archive(v.x, v.y, v.z, v.w); }
+
 
 namespace guiVariables {
 	inline int editMode = 0;
@@ -33,6 +41,8 @@ namespace guiVariables {
 	inline ImVec4 geometryColor = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
 
 	inline bool pause = false;
+
+	inline int selectedFileName = 1;
 }
 
 namespace constants {
@@ -61,6 +71,7 @@ namespace constants {
 	inline constexpr float PARTICLE_RADIUS = 3.0f; //was 3.0f
 	inline constexpr float PARTICLE_DIAMETER = 2.0f * PARTICLE_RADIUS;
 	inline constexpr float REST_DENSITY = 1.0f / (PARTICLE_DIAMETER * PARTICLE_DIAMETER);
+	//inline constexpr float REST_DENSITY = 1.0f / (M_PI * PARTICLE_RADIUS * PARTICLE_RADIUS);
 	inline constexpr float RELAXATION = 0.001f;
 	inline constexpr float BOUND_DAMPING = -0.5f;
 	inline constexpr float MAX_VELOCITY = 1000; //was 0.4f * particle radius

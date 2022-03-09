@@ -9,8 +9,11 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <iostream>
+#include <cstdio>
 #include <iomanip>
 #include <array>
+#include <vector>
+#include <filesystem>
 
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_glfw.h"
@@ -20,24 +23,33 @@
 #include "particle_system.h"
 #include "blower.h"
 
+//my code
 class GUI {
-private:
-	GLFWwindow* window;
-	ParticleSystem* particleSystem;;
-	Blower* blower;
-	float prevScaleFactor = 0;
+	private:
+		GLFWwindow* window;
+		ParticleSystem* particleSystem;;
+		Blower* blower;
+		float prevScaleFactor = 0;
 
-	std::array<std::string, constants::MAX_PARTICLE_TYPES> fluidNames;
-	std::array<std::string, constants::MAX_PARTICLE_TYPES> savedFluidNames;
+		const std::string path = "scenarios/";
+		std::vector<std::string> fileNames;
+		std::string newFile;
 
-public:
-	GUI() = default;
+		void updateFileNames();
 
-	void setScaling(float scaleFactor);
+		//std::array<std::string, constants::MAX_PARTICLE_TYPES> fluidNames;
+		//std::array<std::string, constants::MAX_PARTICLE_TYPES> savedFluidNames;
 
-	bool hasMouse();
 
-	void initialise(GLFWwindow* _window, ParticleSystem* _particleSystem);
-	void update();
-	void render();
+
+	public:
+		GUI() = default;
+
+		void setScaling(float scaleFactor);
+
+		bool hasMouse();
+
+		void initialise(GLFWwindow* _window, ParticleSystem* _particleSystem);
+		void update();
+		void render();
 };

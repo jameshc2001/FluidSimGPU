@@ -3,6 +3,33 @@
 using namespace ImGui;
 using namespace guiVariables;
 
+//code here is taken from https://eliasdaler.github.io/using-imgui-with-sfml-pt2/#arrays
+namespace ImGui
+{
+	static auto vector_getter = [](void* vec, int idx, const char** out_text)
+	{
+		auto& vector = *static_cast<std::vector<std::string>*>(vec);
+		if (idx < 0 || idx >= static_cast<int>(vector.size())) { return false; }
+		*out_text = vector.at(idx).c_str();
+		return true;
+	};
+
+	bool Combo(const char* label, int* currIndex, std::vector<std::string>& values)
+	{
+		if (values.empty()) { return false; }
+		return Combo(label, currIndex, vector_getter,
+			static_cast<void*>(&values), values.size());
+	}
+
+	bool ListBox(const char* label, int* currIndex, std::vector<std::string>& values)
+	{
+		if (values.empty()) { return false; }
+		return ListBox(label, currIndex, vector_getter,
+			static_cast<void*>(&values), values.size());
+	}
+
+}
+
 //taken from imgui_demo, copy past is allowed
 // Helper to display a little (?) mark which shows a tooltip when hovered.
 // In your own code you may want to display an actual icon if you are using a merged icon fonts (see docs/FONTS.md)
@@ -36,6 +63,13 @@ bool GUI::hasMouse() {
 	return GetIO().WantCaptureMouse;
 }
 
+void GUI::updateFileNames() {
+	fileNames.clear();
+	for (const auto& entry : std::filesystem::directory_iterator(path)) {
+		fileNames.push_back(entry.path().u8string().erase(0,10));
+	}
+}
+
 void GUI::initialise(GLFWwindow* _window, ParticleSystem* _particleSystem) {
 	window = _window;
 	particleSystem = _particleSystem;
@@ -51,13 +85,15 @@ void GUI::initialise(GLFWwindow* _window, ParticleSystem* _particleSystem) {
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 130");
 
-	fluidNames[0] = "Water";
-	fluidNames[1] = "Oil";
-	for (int i = 2; i < fluidNames.size(); i++) {
-		fluidNames[i] = "Unnamed Fluid";
-	}
+	//fluidNames[0] = "Water";
+	//fluidNames[1] = "Oil";
+	//for (int i = 2; i < fluidNames.size(); i++) {
+	//	fluidNames[i] = "Unnamed Fluid";
+	//}
 
-	savedFluidNames = fluidNames;
+	//savedFluidNames = fluidNames;
+
+	updateFileNames();
 }
 
 void GUI::update() {
@@ -65,8 +101,8 @@ void GUI::update() {
 	ImGui_ImplGlfw_NewFrame();
 	NewFrame();
 
-	bool showDemoWindow = true;
-	ShowDemoWindow(&showDemoWindow);
+	//bool showDemoWindow = true;
+	//ShowDemoWindow(&showDemoWindow);
 
 	Begin("Tool Box", NULL, ImGuiWindowFlags_NoCollapse);
 
@@ -110,6 +146,7 @@ void GUI::update() {
 			//Text("Fluids");
 			if (CollapsingHeader("Fluid Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
 				Indent();
+				std::array<std::string, MAX_PARTICLE_TYPES>& fluidNames = particleSystem->fluidNames; //nicer way to do this?
 				if (BeginTable("split", 2)) {
 					for (int i = 0; i < 6; i++) {
 						ParticleProperties pp = particleSystem->particleProperties[i];
@@ -257,14 +294,45 @@ void GUI::update() {
 		Indent();
 		if (Button("Reset Particles")) particleSystem->resetParticles();
 		if (Button("Reset Geometry")) particleSystem->resetGeometry();
-		if (Button("Save State")) {
-			particleSystem->saveState();
-			savedFluidNames = fluidNames;
+		Unindent();
+	}
+
+	//loading saving options
+	if (CollapsingHeader("Save and Load", ImGuiTreeNodeFlags_DefaultOpen)) {
+		Indent();
+		if (Button("Quick Save")) particleSystem->saveState(false); SameLine();
+		if (Button("Quick Load")) particleSystem->loadState(false);
+
+		Separator();
+		
+		//save to file
+		static char str0[32] = "";
+		for (int j = 0; j < newFile.size(); j++) {
+			str0[j] = newFile[j];
 		}
-		if (Button("Load State")) {
-			particleSystem->loadState();
-			fluidNames = savedFluidNames;
+		str0[newFile .size()] = '\0'; //risky ;)
+		InputText("File Name", str0, IM_ARRAYSIZE(str0));
+		newFile = str0;
+
+		if (Button("Save State to File")) {
+			particleSystem->saveToFile(path + newFile + ".fsg");
+			updateFileNames();
 		}
+
+		ListBox("Scenarios", &selectedFileName, fileNames);
+
+		if (fileNames.size() > 0 && selectedFileName < fileNames.size()) {
+			if (Button("Load from Selected File")) {
+				//std::cout << fileNames[selectedFileName] << std::endl;
+				particleSystem->loadFromFile(path + fileNames[selectedFileName]);
+			}
+
+			if (Button("Delete Selected File")) {
+				std::filesystem::remove(path + fileNames[selectedFileName]);
+				updateFileNames();
+			}
+		}
+
 		Unindent();
 	}
 

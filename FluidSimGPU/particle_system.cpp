@@ -189,7 +189,14 @@ void ParticleSystem::initialise() {
 	//setup blower
 	blower = Blower(glm::vec2(20, 500), 100, 400, 300, 5, -3.14/2, &predictShader);
 
-	saveState();
+	//setup fluid names
+	fluidNames[0] = "Water";
+	fluidNames[1] = "Oil";
+	for (int i = 2; i < fluidNames.size(); i++) {
+		fluidNames[i] = "Unnamed Fluid";
+	}
+
+	saveState(false);
 }
 
 void ParticleSystem::addParticles(std::vector<Particle>* particlesToAdd) {
@@ -264,16 +271,29 @@ void ParticleSystem::resetGeometry() {
 	}
 }
 
-void ParticleSystem::saveState() {
+template<class Archive> void SaveState::serialize(Archive& archive) {
+	archive(savedNumOfLines, savedLines, savedLineGrid, savedProperties, savedDiseased,
+		savedNumOfParticles, savedNumOfDiseased, savedParticles, savedBlower, savedFluidNames, savedSelectedFluid,
+		savedSpawnSpeed, savedSpawnInterval, savedSpawnRadius, savedDeleteRadius, savedDamSize,
+		savedDamPos, savedGravityEnabled, savedWindEnabled, savedGravityStrength, savedWindStrength,
+		savedWindCentre, savedDrawMode, savedPerformanceMode, savedPause, savedBackgroundColor,
+		savedGeometryColor);
+}
+
+void ParticleSystem::saveState(bool file) {
+	SaveState& state = file ? fileState : quickState;
+
 	state.savedNumOfLines = numLines;
 	state.savedLines = lines;
-	state.savedBlower = blower;
 
 	for (int x = 0; x < L_X_CELLS; x++) {
 		for (int y = 0; y < L_Y_CELLS; y++) {
 			state.savedLineGrid[x][y] = lineGrid[x][y];
 		}
 	}
+
+	state.savedBlower = blower;
+	state.savedFluidNames = fluidNames;
 
 	state.savedProperties = particleProperties;
 	state.savedDiseased = diseased;
@@ -306,17 +326,21 @@ void ParticleSystem::saveState() {
 	state.savedGeometryColor = guiVariables::geometryColor;
 }
 
-void ParticleSystem::loadState() {
+void ParticleSystem::loadState(bool file) {
+	SaveState& state = file ? fileState : quickState;
+
 	numLines = state.savedNumOfLines;
 	lines = state.savedLines;
-	blower = state.savedBlower;
-	blower.setupBlower(&predictShader);
-
 	for (int x = 0; x < L_X_CELLS; x++) {
 		for (int y = 0; y < L_Y_CELLS; y++) {
 			lineGrid[x][y] = state.savedLineGrid[x][y];
 		}
 	}
+
+	blower.deleteBuffers();//must do this first for safety
+	blower = state.savedBlower;
+	blower.completeSetup(&predictShader);
+	fluidNames = state.savedFluidNames;
 
 	particleProperties = state.savedProperties;
 	diseased = state.savedDiseased;
@@ -373,6 +397,25 @@ void ParticleSystem::loadState() {
 	updateGravity();
 	updateLineColor();
 	setVectorField();
+}
+
+void ParticleSystem::saveToFile(std::string path) {
+	//saveState(true);
+	//std::ofstream os;
+	//os.open("test.fsg");
+	//cereal::BinaryOutputArchive oarchive(os);
+	//oarchive(fileState);
+	saveState(true);
+	std::ofstream file(path, std::ios::binary);
+	cereal::BinaryOutputArchive ar(file);
+	ar(fileState);
+}
+
+void ParticleSystem::loadFromFile(std::string path) {
+	std::ifstream file(path, std::ios::binary);
+	cereal::BinaryInputArchive ar(file);
+	ar(fileState);
+	loadState(true);
 }
 
 //send particle properties to GPU, called by gui

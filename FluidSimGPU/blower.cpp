@@ -17,9 +17,9 @@ Blower::Blower(glm::vec2 _sourcePosition, float _sourceWidth, float _length, flo
 	glGenBuffers(1, &EBO);
 	glBindVertexArray(VAO);
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertexData), vertexData, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertexData), &vertexData[0], GL_STATIC_DRAW);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(vertexIndices), vertexIndices, GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(vertexIndices), &vertexIndices[0], GL_STATIC_DRAW);
 	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0); //vertex position
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(sizeof(float) * 4)); //vertex color
@@ -63,6 +63,32 @@ void Blower::findCentre(glm::vec2 start1, glm::vec2 end1, glm::vec2 start2, glm:
 	centre = q + u * s;
 	parallel = false;
 	behindEnd = u > 0;
+}
+
+void Blower::deleteBuffers() {
+	glDeleteVertexArrays(1, &VAO);
+	glDeleteBuffers(1, &VBO);
+	glDeleteBuffers(1, &EBO);
+}
+
+void Blower::completeSetup(Shader* predictShader) {
+	//setups up buffers again, used for when we load it from a file
+	//setup buffers
+	glGenVertexArrays(1, &VAO);
+	glGenBuffers(1, &VBO);
+	glGenBuffers(1, &EBO);
+	glBindVertexArray(VAO);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertexData), &vertexData[0], GL_STATIC_DRAW);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(vertexIndices), &vertexIndices[0], GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0); //vertex position
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(sizeof(float) * 4)); //vertex color
+	glEnableVertexAttribArray(1);
+	glBindVertexArray(0); //done!
+
+	setupBlower(predictShader);
 }
 
 void Blower::setupBlower(Shader* predictShader) {
@@ -109,7 +135,7 @@ void Blower::setupBlower(Shader* predictShader) {
 void Blower::updateGPU(Shader* predictShader, glm::vec2 blowerDir, glm::vec2 AABBmin, glm::vec2 AABBmax) {
 	//update vertex data
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertexData), vertexData, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertexData), &vertexData[0], GL_STATIC_DRAW);
 
 	//update predict shader parameters
 	predictShader->use();
@@ -135,3 +161,8 @@ void Blower::render(Shader* pointShader) {
 	glBindVertexArray(VAO);
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 }
+
+//template<class Archive> void Blower::serialize(Archive& archive) {
+//	archive(sourcePosition, centre, length, angle, parallel, behindEnd, vertexData,
+//		vertexIndices, VAO, EBO, VBO, sourceWidth, endWidth, strength, on, visible);
+//}

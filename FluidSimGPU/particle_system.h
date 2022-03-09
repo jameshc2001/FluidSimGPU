@@ -10,7 +10,15 @@
 #include <vector>
 #include <algorithm>
 #include <array>
+#include <string>
 #include <math.h>
+#include <fstream>
+
+#include "cereal/cereal.hpp"
+#include "cereal/archives/binary.hpp"
+#include "cereal/types/array.hpp"
+#include "cereal/types/string.hpp"
+#include "cereal/types/vector.hpp"
 
 #include "particle.h"
 #include "globals.h"
@@ -49,6 +57,7 @@ struct SaveState {
 	int savedNumOfDiseased;
 	std::array<Particle, MAX_PARTICLES> savedParticles;
 	Blower savedBlower; //contains pointers, makes serializatin harder. Need to decouple that
+	std::array<std::string, constants::MAX_PARTICLE_TYPES> savedFluidNames;
 
 	int savedSelectedFluid;
 	int savedSpawnSpeed;
@@ -70,6 +79,8 @@ struct SaveState {
 
 	ImVec4 savedBackgroundColor;
 	ImVec4 savedGeometryColor;
+
+	template<class Archive> void serialize(Archive& archive);
 };
 
 //create another state called fileState
@@ -142,7 +153,8 @@ private:
 	void setLineColor(int line, glm::vec3 color);
 	void updateLinesGPU();
 
-	SaveState state;
+	SaveState quickState;
+	SaveState fileState;
 
 public:
 	bool drawParticles = false;
@@ -153,6 +165,7 @@ public:
 	int drawMode = 0;
 
 	std::array<int, constants::MAX_PARTICLE_TYPES> diseased; //one to one of particleProperties
+	std::array<std::string, constants::MAX_PARTICLE_TYPES> fluidNames;
 
 	//vector field settings
 	bool gravityEnabled = true;
@@ -173,8 +186,12 @@ public:
 
 	void resetParticles();
 	void resetGeometry();
-	void saveState();
-	void loadState();
+
+	//template<class Archive> void serialize(Archive& archive, SaveState& s);
+	void saveState(bool file);
+	void loadState(bool file);
+	void saveToFile(std::string path);
+	void loadFromFile(std::string path);
 
 	void updateProperties();
 	void updateDiseased();
