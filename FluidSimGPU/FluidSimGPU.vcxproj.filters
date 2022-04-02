@@ -385,5 +385,11 @@
     <None Include="shaders\compute\utility\diseased.comp" />
     <None Include="shaders\compute\utility\measure.comp" />
     <None Include="cereal\external\rapidxml\manual.html" />
+    <None Include="scenarios\DirtyWater.fsg" />
+    <None Include="scenarios\HandDryer.fsg" />
+    <None Include="scenarios\MassDemo.fsg" />
+    <None Include="scenarios\NoseTopDown.fsg" />
+    <None Include="scenarios\NoseTopDownHand.fsg" />
+    <None Include="scenarios\ViscosityDemo.fsg" />
   </ItemGroup>
 </Project>

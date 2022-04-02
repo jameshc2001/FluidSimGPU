@@ -91,6 +91,11 @@ void main() {
 	int neighbours = 0;
 	float totalDistance2 = 0;
 
+	float alpha = 0;
+	float avgRestDensity = 0;
+
+	vec4 shade = vec4(0, 0, 0, 0);
+
 	//search for neighbours
 	for (int y = py - 1; y <= py + 1; y++) {
 		for (int x = px - 1; x <= px + 1; x++) {
@@ -99,6 +104,7 @@ void main() {
 			int cellID = y * xCells + x;
 			for (int i = cellStart[cellID]; i < cellStart[cellID + 1]; i++) { //loop through all particles in cell
 				Particle o = particles[i];
+				float oMass = properties[o.properties].mass;
 
 				vec2 difference = position - o.position;
 				float dist2 = dot(difference, difference);
@@ -110,7 +116,19 @@ void main() {
 //					neighbours++;
 
 					value += (particleRadius * particleRadius) / dist2; //metaball calculation
-					rgba += properties[o.properties].color;// / (dist2 / 50);
+					rgba += properties[o.properties].color;
+					//alpha += densities[i];
+
+					float dist = sqrt(dist2);
+					float polyTemp = cRadius2 - dist * dist;
+					//alpha += densities[i]; //include rest density?
+					alpha += oMass * poly6 * polyTemp * polyTemp * polyTemp;
+					avgRestDensity += properties[o.properties].restDensity;
+
+					//rgba += (oMass / densities[i]) * properties[o.properties].color * poly6 * polyTemp * polyTemp * polyTemp;
+
+					shade += properties[o.properties].color * (1 - (dist2 / cRadius2));
+
 					totalDistance2 += dist2;
 					neighbours++;
 				}
@@ -123,9 +141,17 @@ void main() {
 		return;
 	}
 
+	avgRestDensity /= neighbours;
+	rgba /= neighbours;
+
 	//take averages, maybe we can do something more clever here
 //	values[id] = value;
 //	colors[id] = (rgba / neighbours) + speed / 10000.0;
 	values[id] = value;
-	colors[id] = rgba / neighbours;
+	//colors[id] = rgba;
+	colors[id] = normalize(shade) * length(rgba);
+	//rgba.a = alpha;
+	//colors[id] = rgba; //normalize(rgba); //rgba * 100;
+	colors[id].a = (alpha) / (avgRestDensity + (1.0-rgba.a) * avgRestDensity);
+	//colors[id].a = alpha*10;
 }
