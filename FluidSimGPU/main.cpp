@@ -83,11 +83,6 @@ bool initialise() {
 	glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE); //high dpi scaling on windows and x11 systems
 	//optionally enable MSAA, follow learnopengl for this
 
-	//beg apple to let this code run
-	//#ifdef __APPLE__
-	//	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-	//#endif
-
 	//create window using glfw
 	window = glfwCreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Fluid Sim", NULL, NULL);
 	if (window == NULL) {
@@ -97,10 +92,8 @@ bool initialise() {
 	}
 	glfwMakeContextCurrent(window);
 	glfwSetWindowAspectRatio(window, SCREEN_WIDTH, SCREEN_HEIGHT);
-	//glfwSwapInterval(1); //enable vsync, drastically drops cpu usage, could cause stutter with physics?
 	glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 	glfwSetWindowContentScaleCallback(window, windowContentScaleCallback);
-	//glfwSetMouseButtonCallback(window, mouseButtonCallback);
 
 	//use glad to load all opengl function pointers
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
@@ -111,8 +104,6 @@ bool initialise() {
 
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
-
-	//glEnable(GL_PROGRAM_POINT_SIZE);
 
 	//setup dear imgui
 	gui.initialise(window, &particleSystem);
@@ -125,7 +116,6 @@ bool initialise() {
 	//load shaders
 	lineShader.load("shaders/lineVertex.vert", "shaders/lineFragment.frag");
 	lineShader.use(); //very important
-	//glUniformMatrix4fv(glGetUniformLocation(lineShader.id, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 	lineShader.setMat4("projection", projection);
 
 	//set line width to reasonable size
@@ -297,7 +287,6 @@ int main() {
 	if (!initialise()) return -1;
 	particleSystem.initialise();
 
-	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	glClearColor(1.0f, 0.8f, 0.5f, 1.0f); //set background colour
 
 	int currentSample = 0;
@@ -329,8 +318,6 @@ int main() {
 			if (showGui) gui.update();
 
 			//rendering here
-			//glClear(GL_COLOR_BUFFER_BIT);
-			//if (rightMouseDown) renderCircle();
 			particleSystem.render();
 			//draw line being build
 			if (buildingLine) particleSystem.renderLine(lineStart, mousePos);

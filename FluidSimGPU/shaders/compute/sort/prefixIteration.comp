@@ -31,7 +31,6 @@ layout(std140, binding = 0) uniform SimulationValues {
 	int cNumCells;
 	int cxCells;
 	int cyCells;
-	int finalIteration;
 	float maxVelocity;
 	float particleRadius;
 	float boundDamping;

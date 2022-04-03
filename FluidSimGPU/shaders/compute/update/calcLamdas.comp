@@ -32,7 +32,6 @@ layout(std430, binding = 1) buffer GridCells {
 layout(std430, binding = 2) buffer PropertiesBuffer {
 	Properties properties[6];
 	int diseased[6];
-	float densities[];
 };
 
 layout(std430, binding = 4) buffer ColorBuffer {
@@ -50,7 +49,6 @@ layout(std140, binding = 0) uniform SimulationValues {
 	int cNumCells;
 	int cxCells;
 	int cyCells;
-	int finalIteration;
 	float maxVelocity;
 	float particleRadius;
 	float boundDamping;
@@ -99,9 +97,6 @@ void main() {
 					float polyTemp = kr2 - dist * dist;
 					density += oMass * poly6 * polyTemp * polyTemp * polyTemp;
 
-//					float polyTemp = kernelRadius * kernelRadius - dist * dist;
-//					density += properties[p.properties].mass * poly6 * polyTemp * polyTemp * polyTemp;
-
 					float spikyTemp = kernelRadius - dist;
 					float gradient = oMass * (spikyGrad * spikyTemp * spikyTemp) / restDensity;
 
@@ -112,18 +107,10 @@ void main() {
 		}
 	}
 
-	//colors[cNumCells + id] = density; //store density for use when calculating color
-	//p.density = density;
-
 	float denominator = denominatorNeighbours + denominatorSelf * denominatorSelf;
 	float densityConstraint = (density / restDensity) - 1.0;
 	if (densityConstraint < 0.0) p.lamda = 0;
 	else p.lamda = -densityConstraint / (denominator + relaxation);
-	//p.lamda = -densityConstraint / (denominator + relaxation);
 
 	particles[id] = p;
-
-	if (finalIteration == 1) {
-		densities[id] = density;
-	}
 }

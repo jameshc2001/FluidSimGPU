@@ -4,8 +4,8 @@ using namespace constants;
 
 ParticleSystem::ParticleSystem() {
 	//create basic type
-	particleProperties[0] = ParticleProperties(1, 0.01f, 0, glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
-	particleProperties[1] = ParticleProperties(0.87f, 0.34f, 0, glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+	particleProperties[0] = ParticleProperties(1, 0.01f, 0, glm::vec4(0.0f, 0.0f, 1.0f, 0.5f));
+	particleProperties[1] = ParticleProperties(0.87f, 0.34f, 0, glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
 	for (int i = 2; i < MAX_PARTICLE_TYPES; i++) {
 		particleProperties[i] = ParticleProperties(1, 1.0f, 0, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
 	}
@@ -157,7 +157,7 @@ void ParticleSystem::initialise() {
 
 	//send particle properties to gpu
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, propertiesSSBO);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(ParticleProperties) * particleProperties.size() + sizeof(diseased) + sizeof(float) * MAX_PARTICLES, NULL, GL_DYNAMIC_DRAW);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(ParticleProperties) * particleProperties.size() + sizeof(diseased), NULL, GL_DYNAMIC_DRAW);
 	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(ParticleProperties) * particleProperties.size(), &particleProperties[0]); //properties
 	glBufferSubData(GL_SHADER_STORAGE_BUFFER, sizeof(ParticleProperties) * particleProperties.size(), sizeof(diseased), &diseased[0]); //diseased
 
@@ -206,8 +206,6 @@ void ParticleSystem::addParticles(std::vector<Particle>* particlesToAdd) {
 	if (diseased[(*particlesToAdd)[0].properties] == 1) diseasedParticles += (int)particlesToAdd->size();
 	glBindBuffer(GL_UNIFORM_BUFFER, simUBO);
 	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(int), &particles);
-	//std::cout << "\n" << particles << "\n" << std::endl;
-	//uncommenting above line causes the simulation to slow down loads, printing stuff is slow I guess
 }
 
 void ParticleSystem::removeParticles(glm::vec2 position, float radius) {
@@ -400,11 +398,6 @@ void ParticleSystem::loadState(bool file) {
 }
 
 void ParticleSystem::saveToFile(std::string path) {
-	//saveState(true);
-	//std::ofstream os;
-	//os.open("test.fsg");
-	//cereal::BinaryOutputArchive oarchive(os);
-	//oarchive(fileState);
 	saveState(true);
 	std::ofstream file(path, std::ios::binary);
 	cereal::BinaryOutputArchive ar(file);
@@ -653,21 +646,6 @@ void ParticleSystem::updateLinesGPU() {
 	glm::vec3 color = glm::vec3(guiVariables::geometryColor.x, guiVariables::geometryColor.y, guiVariables::geometryColor.z);
 	for (int i = 0; i < numLines; i++) {
 		Line* line = &lines[i];
-
-		//glm::vec2 a = line->a;
-		//glm::vec2 b = line->b;
-
-		////remove added part
-		//glm::vec2 dir = b - a;
-		//dir = glm::normalize(dir);
-		//a += constants::PARTICLE_RADIUS * dir;
-		//b -= constants::PARTICLE_RADIUS * dir;
-
-		//LineVertexData vd = { a, color };
-		//linevd.push_back(vd);
-		//vd = { b, color };
-		//linevd.push_back(vd);
-
 		LineVertexData vd = { line->a, color };
 		linevd.push_back(vd);
 		vd = { line->b, color };
@@ -757,19 +735,9 @@ void ParticleSystem::updateParticles() {
 	//the most up to date grid information so it is best to fall a frame behind
 	generateVertexData();
 
-	//reset final iteration, this is used for knowing when to save densities for color generating
-	glBindBuffer(GL_UNIFORM_BUFFER, simUBO);
-	int finalIteration = 0;
-	glBufferSubData(GL_UNIFORM_BUFFER, 10 * sizeof(int), sizeof(int), &finalIteration);
-
-	//now update simulation, this is done in another loop because we can use the current grid data
+	//now update simulation, this is done in a loop because we can use the current grid data
 	//for multiple updates because particle neighbours will only change a small amount
 	for (int substep = 0; substep < SUBSTEPS; substep++) {
-		if (substep == SUBSTEPS - 1) {
-			finalIteration = 1;
-			glBufferSubData(GL_UNIFORM_BUFFER, 10 * sizeof(int), sizeof(int), &finalIteration); //still on simUBO
-		}
-
 		//apply external forces and move particles to predicted (naive) position
 		predictShader.use();
 		glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1);
@@ -787,9 +755,6 @@ void ParticleSystem::updateParticles() {
 		//to the predicted position
 		applyShader.use();
 		glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1);
-		
-
-		//interesting to explore how difficult/easy to per particle things (heat, reactions)
 	}
 
 	particlesToRender = particles;
@@ -808,13 +773,11 @@ void ParticleSystem::render() {
 	if (particles != 0) {
 		if (drawMode == 0) { //ms
 			glBindVertexArray(msVAO);
-			//glBindBuffer(GL_ARRAY_BUFFER, msSSBO);
 			msShader.use();
 			glDrawArrays(GL_TRIANGLES, 0, C_NUM_CELLS * 9);
 		}
 		else { //particles
 			glBindVertexArray(pointVAO);
-			//glBindBuffer(GL_ARRAY_BUFFER, pointSSBO);
 			particlePointShader.use();
 			glDrawArrays(GL_POINTS, 0, particlesToRender);
 		}
@@ -822,7 +785,6 @@ void ParticleSystem::render() {
 
 	//draw geometry on top of everything else
 	glBindVertexArray(lineVAO);
-	//glBindBuffer(GL_ARRAY_BUFFER, lineVBO); //maybe unnecessary;
 	lineShader.use();
 	glDrawArrays(GL_LINES, 0, numLines * 2); //2 vertices per line
 

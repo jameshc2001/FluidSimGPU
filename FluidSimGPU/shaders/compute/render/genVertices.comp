@@ -33,7 +33,6 @@ layout(std430, binding = 0) buffer ParticleBuffer {
 layout(std430, binding = 2) buffer PropertiesBuffer {
 	Properties properties[6];
 	int diseased[6];
-	float densities[];
 };
 
 layout(std430, binding = 3) buffer VertexBuffer {
@@ -51,7 +50,6 @@ layout(std140, binding = 0) uniform SimulationValues {
 	int cNumCells;
 	int cxCells;
 	int cyCells;
-	int finalIteration;
 	float maxVelocity;
 	float particleRadius;
 	float boundDamping;
@@ -75,5 +73,6 @@ void main() {
 	if (id >= numParticles) return;
 
 	Particle p = particles[id];
-	vertices[id] = VertexData(vec4(p.position, 0.0, 1.0), properties[p.properties].color);
+	//since this is particle rendering, ignore the alpha value
+	vertices[id] = VertexData(vec4(p.position, 0.0, 1.0), vec4(properties[p.properties].color.rgb, 1.0));
 }

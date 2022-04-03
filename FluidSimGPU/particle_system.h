@@ -122,8 +122,8 @@ private:
 	unsigned int pointSSBO;
 
 	//setup initial simulation values to be sent to gpu
-	std::array<int, 11> simInts = {0, P_NUM_CELLS, P_X_CELLS, P_Y_CELLS, SCREEN_WIDTH, SCREEN_HEIGHT, AP_POWER,
-		C_NUM_CELLS, C_X_CELLS, C_Y_CELLS, 0};
+	std::array<int, 10> simInts = {0, P_NUM_CELLS, P_X_CELLS, P_Y_CELLS, SCREEN_WIDTH, SCREEN_HEIGHT, AP_POWER,
+		C_NUM_CELLS, C_X_CELLS, C_Y_CELLS};
 	std::array<float, 16> simFloats = {MAX_VELOCITY, PARTICLE_RADIUS, BOUND_DAMPING, KERNEL_RADIUS, KR2, POLY6,
 		SPIKY_GRAD, RELAXATION, AP_DENOMINATOR, AP_CONSTANT, DT, GRAVITY * GRAVITY_SCALE, COLOR_RESOLUTION,
 		C_RES_HALF, C_RADIUS, C_RADIUS_2};
@@ -187,7 +187,6 @@ public:
 	void resetParticles();
 	void resetGeometry();
 
-	//template<class Archive> void serialize(Archive& archive, SaveState& s);
 	void saveState(bool file);
 	void loadState(bool file);
 	void saveToFile(std::string path);

@@ -27,7 +27,6 @@ layout(std140, binding = 0) uniform SimulationValues {
 	int cNumCells;
 	int cxCells;
 	int cyCells;
-	int finalIteration;
 	float maxVelocity;
 	float particleRadius;
 	float boundDamping;
@@ -69,7 +68,7 @@ void setTriangle(int cid, int v1, int v2, int v3) {
 	
 	//generate triangle
 	int tid = currentTriangle * 3; //because there are 3 vertices per triangle
-	msVertices[cid + tid] = VertexData(vec4(pos[v1], vals[v1], 0), cols[v1]);
+	msVertices[cid + tid] = VertexData(vec4(pos[v1], vals[v1], 0), cols[v1]); //store meta-ball value in z component for use in frag shader
 	msVertices[cid + tid + 1] = VertexData(vec4(pos[v2], vals[v2], 0), cols[v2]);
 	msVertices[cid + tid + 2] = VertexData(vec4(pos[v3], vals[v3], 0), cols[v3]);
 	currentTriangle += 1;

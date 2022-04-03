@@ -51,12 +51,6 @@ void Blower::findCentre(glm::vec2 start1, glm::vec2 end1, glm::vec2 start2, glm:
 
 	float a = r.x * s.y - r.y * s.x;
 	float b = (q - p).x * r.y - (q - p).y * r.x;
-
-	//if (a == 0 && b != 0) { //parallel
-	//	parallel = true;
-	//	behindEnd = false;
-	//	return;
-	//}
 	
 	//intersection!
 	float u = b / a;
@@ -111,9 +105,6 @@ void Blower::setupBlower(Shader* predictShader) {
 	}
 	else findCentre(v1, v3, v2, v4);
 
-	std::cout << centre.x << " " << centre.y << std::endl;
-	std::cout << "parallel" << parallel << " behindEnd" << behindEnd << std::endl;
-
 	//determine AABB
 	float maxX = std::max(std::max(v1.x, v2.x), std::max(v3.x, v4.x));
 	float maxY = std::max(std::max(v1.y, v2.y), std::max(v3.y, v4.y));
@@ -161,8 +152,3 @@ void Blower::render(Shader* pointShader) {
 	glBindVertexArray(VAO);
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 }
-
-//template<class Archive> void Blower::serialize(Archive& archive) {
-//	archive(sourcePosition, centre, length, angle, parallel, behindEnd, vertexData,
-//		vertexIndices, VAO, EBO, VBO, sourceWidth, endWidth, strength, on, visible);
-//}

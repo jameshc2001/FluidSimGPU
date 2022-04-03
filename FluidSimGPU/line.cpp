@@ -7,7 +7,3 @@ Line::Line(glm::vec2 v1, glm::vec2 v2) {
 	ab = b - a;
 	length = glm::distance(a, b);
 }
-
-//template<class Archive> void Line::serialize(Archive& archive) {
-//	archive(a, b, ab, length, id);
-//}

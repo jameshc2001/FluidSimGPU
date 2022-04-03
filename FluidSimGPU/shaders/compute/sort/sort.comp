@@ -31,7 +31,6 @@ layout(std140, binding = 0) uniform SimulationValues {
 	int cNumCells;
 	int cxCells;
 	int cyCells;
-	int finalIteration;
 	float maxVelocity;
 	float particleRadius;
 	float boundDamping;
@@ -59,9 +58,6 @@ void main() {
 	int px = int(floor(p.position.x / kernelRadius));
 	int py = int(floor(p.position.y / kernelRadius));
 	int cellID = py * xCells + px;
-
-//	int pOffset = atomicAdd(gridData[numCells * 3 + cellID], 1);
-//	particles[gridData[id] + pOffset] = p;
 
 	gridData[numCells * 3 + id] += gridData[cellID]; //adding pOffset
 	particles[gridData[numCells * 3 + id]] = p;

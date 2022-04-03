@@ -31,7 +31,6 @@ layout(std140, binding = 0) uniform SimulationValues {
 	int cNumCells;
 	int cxCells;
 	int cyCells;
-	int finalIteration;
 	float maxVelocity;
 	float particleRadius;
 	float boundDamping;
@@ -60,12 +59,6 @@ void main() {
 	int px = int(floor(p.position.x / kernelRadius));
 	int py = int(floor(p.position.y / kernelRadius));
 	int cellID = py * xCells + px;
-
-	//atomicAdd(gridData[cellID], 1);
-
-	//could store result of above atomic operation in gridData[numCells*4 + id]
-	//of course this would require making grid data be P_NUM_CELLS * 4 + MAX_PARTICLES long
-	//then use result in sort.comp to place particles
 
 	int pOffset = atomicAdd(gridData[cellID], 1);
 	gridData[3 * numCells + id] = pOffset;

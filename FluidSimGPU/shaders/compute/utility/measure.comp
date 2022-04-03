@@ -29,7 +29,6 @@ layout(std430, binding = 1) buffer GridBuffer { //a bit hacky, using first eleme
 layout(std430, binding = 2) buffer PropertiesBuffer {
 	Properties properties[6];
 	int diseased[6];
-	float densities[];
 };
 
 layout(std140, binding = 0) uniform SimulationValues {
@@ -43,7 +42,6 @@ layout(std140, binding = 0) uniform SimulationValues {
 	int cNumCells;
 	int cxCells;
 	int cyCells;
-	int finalIteration;
 	float maxVelocity;
 	float particleRadius;
 	float boundDamping;

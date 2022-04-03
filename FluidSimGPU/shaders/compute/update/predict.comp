@@ -41,7 +41,6 @@ layout(std140, binding = 0) uniform SimulationValues {
 	int cNumCells;
 	int cxCells;
 	int cyCells;
-	int finalIteration;
 	float maxVelocity;
 	float particleRadius;
 	float boundDamping;
@@ -97,11 +96,7 @@ vec2 getIntersection(vec2 start1, vec2 end1, vec2 start2, vec2 end2, bool segmen
 
 	float u = b / a;
 	if (a != 0 && segments && u <= 0 || u >= 1)  return vec2(-1, -1); //indicates no intersection of line segments
-//	if (segments && u <= 0 || u >= 1) {
-//		float c = (q - p).x * s.y - (q - p).y * s.x;
-//		float t = c / a;
-//		if (t <= 0 || t >= 1) return vec2(-1, -1); //indicates no intersection of line segments
-//	}
+
 	return q + u * s;
 }
 
@@ -167,21 +162,6 @@ void main() {
 				int lineGridCell = y0 * lineXCells + x0;
 				for (int i = lineCellStart[lineGridCell]; i < lineCellStart[lineGridCell + 1] && !intersection; i++) { //loop through all lines in this cell
 					Line l = lines[lineIndexes[i]];
-
-					//check for intersection
-					//may be faster to just check if surrounding cells also have reference to this line
-//					bool allCells = true; //remains true if this line we are considering is in all surrounding cells
-//					for (int x = -1; x <= 1 && allCells; x++) {
-//						for (int y = -1; y <= 1 && allCells; y++) {
-//							int otherCell = (y0 + y) * lineXCells + (x0 + x);
-//							bool sameLine = false;
-//							for (int j = lineCellStart[lineGridCell]; j < lineCellStart[lineGridCell + 1]; j++) {
-//								if (j == i) sameLine = true;
-//							}
-//							if (!sameLine) allCells = false; //this cell didn't contain the same line
-//						}
-//					}
-//					intersection = allCells;
 					if (getIntersection(l.a, l.b, p.position, correctedSource, true).x != -1) intersection = true;
 				}
 
@@ -200,16 +180,11 @@ void main() {
 			}
 			//end of bresenham line algorithm
 
-			if (!intersection) {
-//				vec2 sourceToP = p.position - sourcePos;
-//				//now project onto the blower length vector
-//				float dist = max((dot(sourceToP, blowerLengthVec) / blowerLength), blowerLength/3); //play with the clamp
-
+			if (!intersection) { //blow the particle!
 				vec2 sourceToP = p.position - correctedSource;
 				float dist = length(sourceToP);
 
 				float scaler = dist / blowerLength; //low if particle close to source, bound between 0 and 1
-				//p.velocity += (blowerStrength / scaler) * blowerDir; //reciprocal relationship
 				p.velocity += abs((scaler-1) * blowerStrength) * (sourceToP/dist); //blowerDir; //linear relationship
 			}
 		}

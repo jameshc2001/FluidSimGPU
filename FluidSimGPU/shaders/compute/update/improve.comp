@@ -32,7 +32,6 @@ layout(std430, binding = 1) buffer GridCells {
 layout(std430, binding = 2) buffer PropertiesBuffer {
 	Properties properties[6];
 	int diseased[6];
-	float densities[];
 };
 
 layout(std140, binding = 0) uniform SimulationValues {
@@ -46,7 +45,6 @@ layout(std140, binding = 0) uniform SimulationValues {
 	int cNumCells;
 	int cxCells;
 	int cyCells;
-	int finalIteration;
 	float maxVelocity;
 	float particleRadius;
 	float boundDamping;
@@ -108,7 +106,7 @@ void main() {
 
 	p.predictedPosition += deltaP; //make imporovement
 
-	//apply CFL
+	//apply CFL (Courant-Friedrichs-Lewy) Condition
 	p.velocity = p.predictedPosition - p.position; //the translation we play to apply to the particle
 	float velocity2 = dot(p.velocity, p.velocity);
 	if (velocity2 > maxVelocity * maxVelocity) { //limit velocity

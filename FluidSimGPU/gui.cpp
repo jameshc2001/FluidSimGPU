@@ -4,6 +4,7 @@ using namespace ImGui;
 using namespace guiVariables;
 
 //code here is taken from https://eliasdaler.github.io/using-imgui-with-sfml-pt2/#arrays
+//it allows Combo and ListBox to work with vectors of strings
 namespace ImGui
 {
 	static auto vector_getter = [](void* vec, int idx, const char** out_text)
@@ -30,7 +31,7 @@ namespace ImGui
 
 }
 
-//taken from imgui_demo, copy past is allowed
+//taken from imgui_demo
 // Helper to display a little (?) mark which shows a tooltip when hovered.
 // In your own code you may want to display an actual icon if you are using a merged icon fonts (see docs/FONTS.md)
 static void HelpMarker(const char* desc)
@@ -84,14 +85,6 @@ void GUI::initialise(GLFWwindow* _window, ParticleSystem* _particleSystem) {
 
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 130");
-
-	//fluidNames[0] = "Water";
-	//fluidNames[1] = "Oil";
-	//for (int i = 2; i < fluidNames.size(); i++) {
-	//	fluidNames[i] = "Unnamed Fluid";
-	//}
-
-	//savedFluidNames = fluidNames;
 
 	updateFileNames();
 }
@@ -203,10 +196,6 @@ void GUI::update() {
 
 							//diseased, conversion to bool OK
 							bool updateDiseased = false;
-							/*if (Checkbox("Diseased", (bool*)&pp.diseased)) {
-								needToUpdate = true;
-								updateDiseased = true;
-							}*/
 							if (Checkbox("Diseased", (bool*)&particleSystem->diseased[i])) {
 								needToUpdate = true;
 								updateDiseased = true;
@@ -323,7 +312,6 @@ void GUI::update() {
 
 		if (fileNames.size() > 0 && selectedFileName < fileNames.size()) {
 			if (Button("Load from Selected File")) {
-				//std::cout << fileNames[selectedFileName] << std::endl;
 				particleSystem->loadFromFile(path + fileNames[selectedFileName]);
 			}
 
@@ -340,28 +328,12 @@ void GUI::update() {
 	if (CollapsingHeader("Simulation Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
 		Indent();
 
-		//put a reset button here
-		//if (Button("Reset")) {
-		//	gravity = constants::GRAVITY;
-		//	particleSystem->updateGravity();
-		//}
-
 		RadioButton("Draw Fluids", &particleSystem->drawMode, 0); SameLine();
 		RadioButton("Draw Particles", &particleSystem->drawMode, 1);
-
-		//mouse interaction(blowing) enable
-		
-		//InputFloat("Gravity", &gravity, 0.0f, 0.0f, "%2.2f m/s^2"); SameLine();
-		//SliderFloat("Gravity", &gravity, -10.0f, 10.0f, "%2.2f m/s^2");
-		
 
 		Checkbox("Performance Mode", &particleSystem->performanceMode); SameLine();
 		HelpMarker("Lock the FPS to 30 for a smoother experience on lowered end hardward.");
 		Checkbox("Pause", &pause);
-
-		//change geometry and bounds damping
-
-		//very risky, but allow the user to change DT for slow motion, maybe just have toggles for 1.0x 0.5x 0.25x?
 
 		Unindent();
 	}

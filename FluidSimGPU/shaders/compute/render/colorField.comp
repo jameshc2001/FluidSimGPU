@@ -32,7 +32,6 @@ layout(std430, binding = 1) buffer GridCells {
 layout(std430, binding = 2) buffer PropertiesBuffer {
 	Properties properties[6];
 	int diseased[6];
-	float densities[];
 };
 
 layout(std430, binding = 4) buffer ColorBuffer {
@@ -51,7 +50,6 @@ layout(std140, binding = 0) uniform SimulationValues {
 	int cNumCells;
 	int cxCells;
 	int cyCells;
-	int finalIteration;
 	float maxVelocity;
 	float particleRadius;
 	float boundDamping;
@@ -85,16 +83,15 @@ void main() {
 	int px = int(floor(position.x / kernelRadius));
 	int py = int(floor(position.y / kernelRadius));
 
-	vec4 rgba = vec4(0, 0, 0, 0);
+	vec4 rgba = vec4(0, 0, 0, 0); //used for determining brghtness
 	float value = 0;
 	float speed = 0;
 	int neighbours = 0;
-	float totalDistance2 = 0;
 
-	float alpha = 0;
+	float alpha = 0; //determines transparency
 	float avgRestDensity = 0;
 
-	vec4 shade = vec4(0, 0, 0, 0);
+	vec4 shade = vec4(0, 0, 0, 0); //determines color
 
 	//search for neighbours
 	for (int y = py - 1; y <= py + 1; y++) {
@@ -110,26 +107,15 @@ void main() {
 				float dist2 = dot(difference, difference);
 
 				if (dist2 < cRadius2) {
-//					value += (particleRadius * particleRadius) / dist2; //metaball calculation
-//					rgba += properties[o.properties].color;
-//					speed += length(o.velocity);
-//					neighbours++;
-
 					value += (particleRadius * particleRadius) / dist2; //metaball calculation
 					rgba += properties[o.properties].color;
-					//alpha += densities[i];
 
 					float dist = sqrt(dist2);
 					float polyTemp = cRadius2 - dist * dist;
-					//alpha += densities[i]; //include rest density?
 					alpha += oMass * poly6 * polyTemp * polyTemp * polyTemp;
 					avgRestDensity += properties[o.properties].restDensity;
-
-					//rgba += (oMass / densities[i]) * properties[o.properties].color * poly6 * polyTemp * polyTemp * polyTemp;
-
 					shade += properties[o.properties].color * (1 - (dist2 / cRadius2));
 
-					totalDistance2 += dist2;
 					neighbours++;
 				}
 			}
@@ -144,14 +130,7 @@ void main() {
 	avgRestDensity /= neighbours;
 	rgba /= neighbours;
 
-	//take averages, maybe we can do something more clever here
-//	values[id] = value;
-//	colors[id] = (rgba / neighbours) + speed / 10000.0;
 	values[id] = value;
-	//colors[id] = rgba;
 	colors[id] = normalize(shade) * length(rgba);
-	//rgba.a = alpha;
-	//colors[id] = rgba; //normalize(rgba); //rgba * 100;
 	colors[id].a = (alpha) / (avgRestDensity + (1.0-rgba.a) * avgRestDensity);
-	//colors[id].a = alpha*10;
 }

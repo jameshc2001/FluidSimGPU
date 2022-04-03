@@ -37,10 +37,6 @@ class GUI {
 
 		void updateFileNames();
 
-		//std::array<std::string, constants::MAX_PARTICLE_TYPES> fluidNames;
-		//std::array<std::string, constants::MAX_PARTICLE_TYPES> savedFluidNames;
-
-
 
 	public:
 		GUI() = default;
