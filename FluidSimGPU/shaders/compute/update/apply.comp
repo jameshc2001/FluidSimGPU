@@ -86,7 +86,7 @@ void main() {
 
 	Particle p = particles[id];
 
-	//uncomment if simulator keeps going crazy, may not have to include in release
+	//CFL applied in previous shader
 //	//apply CFL
 //	p.velocity = p.predictedPosition - p.position; //the translation we play to apply to the particle
 //
@@ -126,7 +126,7 @@ void main() {
 			}
 		}
 	}
-	//barrier();
+
 	p.velocity += viscosity * properties[p.properties].viscosity;
 	p.position = p.predictedPosition;
 

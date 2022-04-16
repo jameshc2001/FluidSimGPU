@@ -13,7 +13,7 @@ struct Particle {
 };
 
 //largest is vec4 with 16 bytes, total is 32
-struct Properties { //particle properties
+struct Properties {
 	float mass;
 	float viscosity;
 	float restDensity;
@@ -98,7 +98,7 @@ void main() {
 					density += oMass * poly6 * polyTemp * polyTemp * polyTemp;
 
 					float spikyTemp = kernelRadius - dist;
-					float gradient = oMass * (spikyGrad * spikyTemp * spikyTemp) / restDensity;
+					float gradient = oMass * (spikyGrad * spikyTemp * spikyTemp) / restDensity; //gradient of constraint function
 
 					denominatorNeighbours += gradient * gradient;
 					denominatorSelf += gradient;

@@ -656,12 +656,12 @@ void ParticleSystem::updateLinesGPU() {
 	glBufferData(GL_ARRAY_BUFFER, sizeof(LineVertexData) * numLines * 2, &linevd[0], GL_STATIC_DRAW); //*2 because each line has 2 vertices
 	glBindVertexArray(0);
 
-	//generate crazy grid stuff
-	std::vector<int> lineIndexes; //we can't know the length of this
-	std::vector<int> lineCellStart; //length of this is always the same
-	for (int y = 0; y < L_Y_CELLS; y++) { //loop through y before x, super important!
+	//prepare line data for GPU
+	std::vector<int> lineIndexes; //points to lines in line array
+	std::vector<int> lineCellStart; //points to start of cells in lineIndexes
+	for (int y = 0; y < L_Y_CELLS; y++) {
 		for (int x = 0; x < L_X_CELLS; x++) {
-			int cellID = y * L_X_CELLS + x;
+			int cellID = y * L_X_CELLS + x; //note how 1D cell ID is calculated
 			lineCellStart.push_back((int)lineIndexes.size()); //current cell starts here
 			for (int line : lineGrid[x][y]) {
 				lineIndexes.push_back(line);
@@ -766,6 +766,9 @@ void ParticleSystem::update(float deltaTime) {
 		updateParticles();
 		accumulator -= UPDATE_INTERVAL;
 	}
+	//if we fall more than one update behind ignore it, only consider fraction part
+	//e.g. if we are 2.4 * UPDATE_INTERVAL behind, adjust so that we are 0.4 * UPDATE_INTERVAL behind
+	//this prevents us from trying to catch up when it's not possible
 	while (accumulator >= UPDATE_INTERVAL) accumulator -= UPDATE_INTERVAL;
 }
 
@@ -774,6 +777,8 @@ void ParticleSystem::render() {
 		if (drawMode == 0) { //ms
 			glBindVertexArray(msVAO);
 			msShader.use();
+
+			//each cell has 3 triangles, so 9 vertices
 			glDrawArrays(GL_TRIANGLES, 0, C_NUM_CELLS * 9);
 		}
 		else { //particles

@@ -104,6 +104,20 @@ void GUI::update() {
 	// Basic info
 	Text("Simulation average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
 	Text("Particles: %d, \t Diseased: %d", particleSystem->getParticles(), particleSystem->getDiseased());
+	if (Button("Test Frame Time")) getAvgFrameTime = true;
+
+	if (getAvgFrameTime) {
+		avgFrameTime += 1000.0f / io.Framerate;
+		samples += 1;
+		if (samples == 100) {
+			avgFrameTime /= 100.0f;
+			//std::cout << particleSystem->getParticles() << " " << avgFrameTime << std::endl;
+			std::cout << avgFrameTime << std::endl;
+			avgFrameTime = 0;
+			samples = 0;
+			getAvgFrameTime = false;
+		}
+	}
 
 	//edit mode
 	if (CollapsingHeader("Edit Mode", ImGuiTreeNodeFlags_DefaultOpen)) {

@@ -51,6 +51,15 @@ vec2 pos[8]; //positions of corners and midpoints, ordered as show in diagram
 vec4 cols[8]; //colors of corners and midpoints, ordered as show in diagram
 int currentTriangle = 0; //keep track of how many triangle we have generated
 
+//      3      6      2
+//		______________	
+//		|			 |
+//		|			 |
+//	   7|			 | 5
+//		|			 |
+//		|____________|
+//     0      4       1
+
 //linear interpolate between corners v1 and v2 and store result in v3
 void lerp(int v1, int v2, int v3) {
 	float scale = (minval - vals[v2]) / (vals[v1] - vals[v2]);
@@ -73,16 +82,6 @@ void setTriangle(int cid, int v1, int v2, int v3) {
 	msVertices[cid + tid + 2] = VertexData(vec4(pos[v3], vals[v3], 0), cols[v3]);
 	currentTriangle += 1;
 }
-
-
-//      3      6      2
-//		______________	
-//		|			 |
-//		|			 |
-//	   7|			 | 5
-//		|			 |
-//		|____________|
-//     0      4       1
 
 void main() {
 	uint id = gl_GlobalInvocationID.x;

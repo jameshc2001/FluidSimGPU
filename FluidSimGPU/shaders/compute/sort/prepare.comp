@@ -17,7 +17,7 @@ layout(std430, binding = 0) buffer ParticleBuffer {
 };
 
 layout(std430, binding = 1) buffer GridBuffer {
-	int gridData[];
+	int gridData[]; //this is referred to as cellStart in non-sorting shaders
 };
 
 layout(std140, binding = 0) uniform SimulationValues {

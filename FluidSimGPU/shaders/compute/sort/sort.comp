@@ -59,6 +59,6 @@ void main() {
 	int py = int(floor(p.position.y / kernelRadius));
 	int cellID = py * xCells + px;
 
-	gridData[numCells * 3 + id] += gridData[cellID]; //adding pOffset
+	gridData[numCells * 3 + id] += gridData[cellID]; //adding cell ID to offset
 	particles[gridData[numCells * 3 + id]] = p;
 }

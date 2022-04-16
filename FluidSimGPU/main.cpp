@@ -28,8 +28,6 @@ Shader lineShader;
 ParticleSystem particleSystem;
 GUI gui;
 
-float frametime = 0;
-float accumulator = 0;
 float timeAtLastSpawn = 0;
 
 //bool pause = false;
@@ -289,9 +287,6 @@ int main() {
 
 	glClearColor(1.0f, 0.8f, 0.5f, 1.0f); //set background colour
 
-	int currentSample = 0;
-	float sampleSum = 0;
-
 	float deltaTime = 0;
 	float prevTime = 0;
 
@@ -302,7 +297,6 @@ int main() {
 		float currentTime = (float)glfwGetTime();
 		deltaTime = currentTime - prevTime;
 		prevTime = currentTime;
-		accumulator += deltaTime;
 
 		glClear(GL_COLOR_BUFFER_BIT); //bad for performance?
 
@@ -312,21 +306,17 @@ int main() {
 		//sim updating here
 		if (!guiVariables::pause) particleSystem.update(deltaTime);
 
-		//std::cout << accumulator << "   " << frametime << std::endl;
-		if (accumulator >= frametime) {
-			//update gui
-			if (showGui) gui.update();
+		//update gui
+		if (showGui) gui.update();
 
-			//rendering here
-			particleSystem.render();
-			//draw line being build
-			if (buildingLine) particleSystem.renderLine(lineStart, mousePos);
-			if (showGui) gui.render(); //put ui ontop of particles
+		//rendering here
+		particleSystem.render();
+		//draw line being build
+		if (buildingLine) particleSystem.renderLine(lineStart, mousePos);
+		if (showGui) gui.render(); //put ui ontop of particles
 
-			//display new frame
-			glfwSwapBuffers(window);
-			accumulator -= frametime;
-		}
+		//display new frame
+		glfwSwapBuffers(window);
 
 		//poll new events
 		glfwPollEvents(); //really slow function

@@ -183,9 +183,8 @@ void main() {
 			if (!intersection) { //blow the particle!
 				vec2 sourceToP = p.position - correctedSource;
 				float dist = length(sourceToP);
-
 				float scaler = dist / blowerLength; //low if particle close to source, bound between 0 and 1
-				p.velocity += abs((scaler-1) * blowerStrength) * (sourceToP/dist); //blowerDir; //linear relationship
+				p.velocity += abs((scaler-1) * blowerStrength) * (sourceToP/dist); //linear relationship
 			}
 		}
 	}

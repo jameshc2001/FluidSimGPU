@@ -21,7 +21,8 @@ struct ParticleProperties {
 	ParticleProperties(float m, float v, float _stickiness, glm::vec4 _color) :
 		mass(m), viscosity(v), stickiness(_stickiness), restDensity(constants::REST_DENSITY * m), color(_color) { }
 
-	template<class Archive> void serialize(Archive& archive) {
+	template<class Archive>
+	void serialize(Archive& archive) {
 		archive(mass, viscosity, restDensity, stickiness, color);
 	}
 };
@@ -39,7 +40,8 @@ struct Particle {
 		position(x, y), predictedPosition(0.0f, 0.0f), velocity(0.0f, 0.0f),
 		lambda(0), properties(_properties) {}
 	
-	template<class Archive> void serialize(Archive& archive) {
+	template<class Archive>
+	void serialize(Archive& archive) {
 		archive(position, predictedPosition, velocity, lambda, properties);
 	}
 };

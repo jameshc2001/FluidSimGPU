@@ -37,6 +37,10 @@ class GUI {
 
 		void updateFileNames();
 
+		bool getAvgFrameTime = false;
+		int samples = 0;
+		float avgFrameTime = 0;
+
 
 	public:
 		GUI() = default;

@@ -82,7 +82,7 @@ namespace constants {
 	inline constexpr float SPIKY_GRAD = -30.0f / ((float)M_PI * KR2 * KR2 * KERNEL_RADIUS); //kernel radius^5
 
 	inline constexpr float AP_CONSTANT = 0.1f; //usually 0.1f
-	inline constexpr float AP_DISTANCE = 0.3f * KERNEL_RADIUS;
+	inline constexpr float AP_DISTANCE = 0.3f * KERNEL_RADIUS; //usually 0.3f * KR
 	inline constexpr float AP_DISTANCE2 = AP_DISTANCE * AP_DISTANCE;
 	inline constexpr int AP_POWER = 4;
 	inline constexpr float AP_DENOMINATOR = POLY6 * (KR2 - AP_DISTANCE2) * (KR2 - AP_DISTANCE2) * (KR2 - AP_DISTANCE2);

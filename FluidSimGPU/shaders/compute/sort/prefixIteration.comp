@@ -50,7 +50,7 @@ layout(std140, binding = 0) uniform SimulationValues {
 };
 
 uniform int i;
-uniform int flag; //decides which way to flip the data, start at
+uniform int flag; //decides which way to flip the data
 uniform int finalPrefixIteration;
 
 void main() {
