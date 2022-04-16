@@ -218,6 +218,7 @@ void ParticleSystem::removeParticles(glm::vec2 position, float radius) {
 
 	removeShader.setFloat("deleteRadius", radius);
 	removeShader.setVec2("deletePosition", position);
+	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 	glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1);
 
 	glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(int), &particles);
@@ -428,6 +429,7 @@ void ParticleSystem::updateDiseased() {
 	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(int), &data);
 
 	diseasedShader.use();
+	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 	glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1);
 
 	glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(int), &diseasedParticles);
@@ -459,6 +461,7 @@ void ParticleSystem::measureDiseaseDistribution() {
 
 	//call shader
 	measureShader.use();
+	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 	glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1);
 
 	//calculate result
@@ -683,6 +686,7 @@ void ParticleSystem::updateGridGPU() {
 
 	//calculate number of particles in each cell and store each particles individual offset for later
 	prepareShader.use();
+	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 	glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1); //generate counters and copy particles over
 
 	//gridCellSSBO still binded. Here we copy counters over to 2nd section of gridData array
@@ -698,6 +702,7 @@ void ParticleSystem::updateGridGPU() {
 		prefixIterationShader.setInt("i", i);
 		prefixIterationShader.setInt("flag", flag);
 		if (i == limit - 1) prefixIterationShader.setInt("finalPrefixIteration", 1);
+		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 		glDispatchCompute((int)ceil((float)P_NUM_CELLS / 1024.0f), 1, 1);
 		if (flag == 0) flag = 1;
 		else flag = 0;
@@ -706,6 +711,7 @@ void ParticleSystem::updateGridGPU() {
 	//using the exclusive prefix list and previously computed indiviual offsets to move
 	//particles into their correction positions within the particle buffer
 	sortShader.use();
+	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 	glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1);
 }
 
@@ -713,12 +719,15 @@ void ParticleSystem::generateVertexData() {
 	if (!performanceMode || !wait) {
 		if (drawMode == 0) {
 			colorShader.use(); //generates colour values
+			glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 			glDispatchCompute((int)ceil((float)C_NUM_CELLS / 1024.0f), 1, 1);
 			genMSVerticesShader.use(); //convertes colour grid into vertices for rendering
+			glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 			glDispatchCompute((int)ceil((float)C_NUM_CELLS / 1024.0f), 1, 1);
 		}
 		else {
 			genVerticesShader.use(); //simply creates vertex for each particle
+			glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 			glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1);
 		}
 	}
@@ -740,20 +749,24 @@ void ParticleSystem::updateParticles() {
 	for (int substep = 0; substep < SUBSTEPS; substep++) {
 		//apply external forces and move particles to predicted (naive) position
 		predictShader.use();
+		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 		glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1);
 
 		//calculate lambdas using sph density constraint function
 		calcLamdasShader.use();
+		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 		glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1);
 
 		//use lambdas and apply artifical pressure to update initial prediction of position
 		//also calculates velocity of particles using previous position and predicted position
 		improveShader.use();
+		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 		glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1);
 
 		//apply viscosity using velocity values and then set the particles actual position
 		//to the predicted position
 		applyShader.use();
+		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 		glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1);
 	}
 

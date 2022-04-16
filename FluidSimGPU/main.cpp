@@ -109,6 +109,8 @@ bool initialise() {
 	glfwGetWindowContentScale(window, &xscale, &yscale);
 	gui.setScaling(xscale); //assume xscale == yscale
 
+	glfwSwapInterval(0);
+
 	//generate projection matrix
 	glm::mat4 projection = glm::ortho(0.0f, (float)SCREEN_WIDTH, 0.0f, (float)SCREEN_HEIGHT, -1.0f, 1.0f);
 	//load shaders
@@ -292,7 +294,6 @@ int main() {
 
 	//main loop
 	while (!glfwWindowShouldClose(window)) {
-		
 		//get time since last frame
 		float currentTime = (float)glfwGetTime();
 		deltaTime = currentTime - prevTime;
