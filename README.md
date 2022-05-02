@@ -5,7 +5,7 @@ This is my 3rd project for my computer science degree. It is a real time fluid s
 It was created mainly by following the work of researchers at Nvidia:  
 https://mmacklin.com/pbf_sig_preprint.pdf  
 
-To achieve good performance the algorithm has been implemented in parallel on the GPU using compute shaders from the OpenGL.
+To achieve good performance the algorithm has been implemented in parallel on the GPU using compute shaders in OpenGL.
 Graphics are also handled by OpenGL.
 
 <img src="screenshots/wave.png" width="600" height=auto />
