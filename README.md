@@ -30,5 +30,5 @@ Make sure to link the following library files
 1. glfw3.lib
 2. opengl32.lib
 
-Finally, you will need to compile with C++ 17 using Visual Studio 2019
+Finally, you will need to compile with C++ 17 using Visual Studio 2019\
 You may need to build and then rebuild to avoid linker errors.
