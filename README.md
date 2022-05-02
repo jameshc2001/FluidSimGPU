@@ -13,12 +13,12 @@ from the OpenGL library. Graphics are also handled by OpenGL.
 <img src="screenshots/density.png" width="600" height=auto />
 
 Installation Instructions:\
-You only need to include two libraries. I have included the others.\
+You only need to include two libraries. I have included the others.
 1. glm: https://github.com/g-truc/glm
 2. glfw: https://www.glfw.org/
 
 We used glfw version 3.3.4 but a higher version should be fine.\
-Binaries are available for glfw but it is quite easy to build it yourself.\
+Binaries are available for glfw but it is quite easy to build it yourself.
 
 Your include folder should be setup as follows:
 
@@ -26,7 +26,7 @@ include/\
 &emsp;GLFW/\
 &emsp;glm/
 
-Make sure to link the following library files\
+Make sure to link the following library files
 1. glfw3.lib
 2. opengl32.lib
 
