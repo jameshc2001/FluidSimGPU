@@ -22,8 +22,8 @@ Binaries are available for glfw but it is quite easy to build it yourself.\
 
 Your include folder should be setup as follows:
 
-include/
-&emsp;GLFW/
+include/\
+&emsp;GLFW/\
 &emsp;glm/
 
 Make sure to link the following library files\
