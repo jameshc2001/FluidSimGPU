@@ -41,7 +41,8 @@ void Blower::setEnd(Shader* predictShader, glm::vec2 end) {
 	setupBlower(predictShader);
 }
 
-//From Gareth Rees' answer:
+//Intersection of Two Lines in Three-Space From Graphics Gems by Ronald Goldman
+//This 2D implementation is from Gareth Rees' answer:
 //https://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect
 void Blower::findCentre(glm::vec2 start1, glm::vec2 end1, glm::vec2 start2, glm::vec2 end2) {
 	glm::vec2 p = start1;

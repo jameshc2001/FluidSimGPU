@@ -1,8 +1,7 @@
 #pragma once
 
-#include <glad/glad.h>
+#include "glad/glad.h"
 #include <GLFW/glfw3.h>
-#include <stb_image.h> //probably won't use this
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -23,7 +22,6 @@
 #include "particle_system.h"
 #include "blower.h"
 
-//my code
 class GUI {
 	private:
 		GLFWwindow* window;

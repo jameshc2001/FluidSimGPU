@@ -104,20 +104,22 @@ void GUI::update() {
 	// Basic info
 	Text("Simulation average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
 	Text("Particles: %d, \t Diseased: %d", particleSystem->getParticles(), particleSystem->getDiseased());
-	if (Button("Test Frame Time")) getAvgFrameTime = true;
 
-	if (getAvgFrameTime) {
-		avgFrameTime += 1000.0f / io.Framerate;
-		samples += 1;
-		if (samples == 100) {
-			avgFrameTime /= 100.0f;
-			//std::cout << particleSystem->getParticles() << " " << avgFrameTime << std::endl;
-			std::cout << avgFrameTime << std::endl;
-			avgFrameTime = 0;
-			samples = 0;
-			getAvgFrameTime = false;
-		}
-	}
+	//code for testing frame times
+	//if (Button("Test Frame Time")) getAvgFrameTime = true;
+
+	//if (getAvgFrameTime) {
+	//	avgFrameTime += 1000.0f / io.Framerate;
+	//	samples += 1;
+	//	if (samples == 100) {
+	//		avgFrameTime /= 100.0f;
+	//		//std::cout << particleSystem->getParticles() << " " << avgFrameTime << std::endl;
+	//		std::cout << avgFrameTime << std::endl;
+	//		avgFrameTime = 0;
+	//		samples = 0;
+	//		getAvgFrameTime = false;
+	//	}
+	//}
 
 	//edit mode
 	if (CollapsingHeader("Edit Mode", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -192,13 +194,15 @@ void GUI::update() {
 							if (DragFloat("Density", &displayedMass, 5.0f, 100.0f, 20000.0f, "%2.2f kg/m^3", ImGuiSliderFlags_AlwaysClamp)) {
 								pp.mass = displayedMass / 1000.0f;
 								needToUpdate = true;
-							}
+							} SameLine();
+							HelpMarker("Kilogram per cubic meter");
 							//if (DragFloat("Density", &pp.mass, 0.05f, 0.01f, 20.0f, "%2.2f * 10^2 kg/m^3", ImGuiSliderFlags_AlwaysClamp)) needToUpdate = true;
 							float displayedViscosity = 100.0f * pp.viscosity;
 							if (DragFloat("Viscosity", &displayedViscosity, 1.0f, 1.0f, 5000.0f, "%2.2f mPa-s", ImGuiSliderFlags_AlwaysClamp)) {
 								pp.viscosity = displayedViscosity / 100.0f;
 								needToUpdate = true;
-							}
+							} SameLine();
+							HelpMarker("Millipascal seconds");
 							//if (DragFloat("Viscosity", &pp.viscosity, 0.05f, 0.01f, 100.0f, "%2.2f * 10^2 mPa-s", ImGuiSliderFlags_AlwaysClamp)) needToUpdate = true;
 							pp.restDensity = constants::REST_DENSITY * pp.mass;
 

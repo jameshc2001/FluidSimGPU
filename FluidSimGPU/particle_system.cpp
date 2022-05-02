@@ -187,7 +187,7 @@ void ParticleSystem::initialise() {
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Line) * MAX_LINES + sizeof(int) * L_NUM_CELLS + sizeof(int) * 100000, NULL, GL_STATIC_DRAW); //dont know how big so make it super big
 
 	//setup blower
-	blower = Blower(glm::vec2(20, 500), 100, 400, 300, 5, -3.14/2, &predictShader);
+	blower = Blower(glm::vec2(20, 500), 100, 400, 300, 5, -3.14f/2.0f, &predictShader);
 
 	//setup fluid names
 	fluidNames[0] = "Water";
@@ -682,6 +682,7 @@ void ParticleSystem::updateLinesGPU() {
 void ParticleSystem::updateGridGPU() {
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, gridCellSSBO);
 	GLint zero = 0;
+	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 	glClearBufferData(GL_SHADER_STORAGE_BUFFER, GL_R32I, GL_RED, GL_INT, &zero); //set grid data to all 0s
 
 	//calculate number of particles in each cell and store each particles individual offset for later
@@ -690,6 +691,7 @@ void ParticleSystem::updateGridGPU() {
 	glDispatchCompute((int)ceil((float)particles / 1024.0f), 1, 1); //generate counters and copy particles over
 
 	//gridCellSSBO still binded. Here we copy counters over to 2nd section of gridData array
+	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 	glCopyBufferSubData(GL_SHADER_STORAGE_BUFFER, GL_SHADER_STORAGE_BUFFER, 0, sizeof(int) * P_NUM_CELLS, sizeof(int) * P_NUM_CELLS);
 
 	//do prefix sum on list of particle cell amounts see wikipedia for algorithm

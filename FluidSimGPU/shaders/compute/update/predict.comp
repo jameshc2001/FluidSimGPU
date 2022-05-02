@@ -83,7 +83,8 @@ uniform bool behindEnd; //true if centre is behind end
 uniform float lineGridRes;
 uniform int lineXCells;
 
-//From Gareth Rees' answer:
+//Intersection of Two Lines in Three-Space From Graphics Gems by Ronald Goldman
+//This 2D implementation is from Gareth Rees' answer:
 //https://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect
 vec2 getIntersection(vec2 start1, vec2 end1, vec2 start2, vec2 end2, bool segments) {
 	vec2 p = start1;

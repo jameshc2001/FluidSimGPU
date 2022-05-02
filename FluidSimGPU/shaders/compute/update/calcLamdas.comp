@@ -87,7 +87,8 @@ void main() {
 			if (y < 0 || x < 0 || y >= yCells || x >= xCells) continue; //out of bounds
 
 			int cellID = y * xCells + x;
-			for (int i = cellStart[cellID]; i < cellStart[cellID + 1]; i++) { //loop through all particles in cell
+			//loop through all particles in cell
+			for (int i = cellStart[cellID]; i < cellStart[cellID + 1]; i++) {
 				Particle o = particles[i];
 
 				float dist = distance(o.predictedPosition, p.predictedPosition);
@@ -98,7 +99,8 @@ void main() {
 					density += oMass * poly6 * polyTemp * polyTemp * polyTemp;
 
 					float spikyTemp = kernelRadius - dist;
-					float gradient = oMass * (spikyGrad * spikyTemp * spikyTemp) / restDensity; //gradient of constraint function
+					//gradient of constraint function
+					float gradient = oMass * (spikyGrad * spikyTemp * spikyTemp) / restDensity;
 
 					denominatorNeighbours += gradient * gradient;
 					denominatorSelf += gradient;

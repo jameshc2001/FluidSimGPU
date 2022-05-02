@@ -58,9 +58,8 @@ namespace constants {
 	inline constexpr int FONT_SIZE = 18;
 
 
-	//SIMULATION CONSTANTS START HERE
 
-	inline constexpr int BLOCKS_PER_THREAD = 16; //originally 16
+	//SIMULATION CONSTANTS START HERE
 
 	inline constexpr float UPDATE_INTERVAL = 1.0f / 60.0f;
 	inline constexpr int SUBSTEPS = 10; //8 usually
@@ -68,13 +67,12 @@ namespace constants {
 
 	inline constexpr float GRAVITY = -9.81f; //standard setting for resets
 	inline constexpr float GRAVITY_SCALE = 100.0f;
-	inline constexpr float PARTICLE_RADIUS = 3.0f; //was 3.0f
+	inline constexpr float PARTICLE_RADIUS = 3.0f;
 	inline constexpr float PARTICLE_DIAMETER = 2.0f * PARTICLE_RADIUS;
 	inline constexpr float REST_DENSITY = 1.0f / (PARTICLE_DIAMETER * PARTICLE_DIAMETER);
-	//inline constexpr float REST_DENSITY = 1.0f / (M_PI * PARTICLE_RADIUS * PARTICLE_RADIUS);
 	inline constexpr float RELAXATION = 0.001f;
 	inline constexpr float BOUND_DAMPING = -0.5f;
-	inline constexpr float MAX_VELOCITY = 1000; //was 0.4f * particle radius
+	inline constexpr float MAX_VELOCITY = 2.0f * PARTICLE_RADIUS; //was 0.4f * particle radius
 
 	inline constexpr float KERNEL_RADIUS = 3.25f * PARTICLE_RADIUS; //was 3.0 * prad
 	inline constexpr float KR2 = KERNEL_RADIUS * KERNEL_RADIUS;
