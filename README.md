@@ -31,4 +31,4 @@ Make sure to link the following library files
 2. opengl32.lib
 
 Finally, you will need to compile with C++ 17 using Visual Studio 2019\
-You may need to build and then rebuild to avoid linker errors.
+Make sure to select "Rebuild Solution" in Visual Studio, not "Build Solution", otherwise you will get linker errors.
